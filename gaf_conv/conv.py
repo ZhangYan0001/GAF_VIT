@@ -66,7 +66,7 @@ def conv_gaf_image():
 
       gaf_images = gaf.fit_transform(caps_normalized.reshape(1,-1))
 
-      plt.figure(figsize=(12,5))
+      plt.figure(figsize=(5,5))
       plt.imshow(gaf_images[0], cmap="viridis", origin="lower")
       plt.xticks([])
       plt.yticks([])

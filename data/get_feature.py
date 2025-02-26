@@ -50,7 +50,6 @@ def normalize_data(df, col: str):
 def read_dfs_by_cycle_toSOH(df_key, dfs: dict):
   df = dfs[df_key]
   cycles = list(set(df["循环"]))
-  # SOHs = []
   SOHs_label = {}
   i = 0
   for c in cycles:
