@@ -1,8 +1,8 @@
 import data.get_feature as gf
 
-df_keys = gf.df_keys
+# df_keys = gf.df_keys
 dfs = gf.dfs
-def get_soh_labels():
+def get_soh_labels(df_keys:[]):
   SOH_Labels = {}
   for df_key in df_keys:
     soh_label = gf.read_dfs_by_cycle_toSOH(df_key, dfs)

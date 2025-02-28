@@ -21,7 +21,6 @@ print(f"样本 {TEST_INDEX} 的路径: {dataset.path_data[TEST_INDEX]}")
 print(f"样本 {TEST_INDEX} 的标签: {dataset.labels[TEST_INDEX]}")
 
 # 测试2：获取单个样本
-"""
 try:
     sample_img, sample_label = dataset[TEST_INDEX]
     print("\n单个样本测试通过")
@@ -40,4 +39,3 @@ try:
     print(f"批次标签形状: {labels.shape}")
 except Exception as e:
     print(f"\n批量加载失败: {str(e)}")
-"""

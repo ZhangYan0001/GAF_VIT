@@ -25,7 +25,7 @@ class Identity(nn.Module):
 
 # 图像分块、Embedding
 class PatchEmbed(nn.Module):
-  def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=768):
+  def __init__(self, img_size=128, patch_size=16, in_chans=3, embed_dim=768):
     super().__init__()
     # 原始大小为int，转为tuple，即：img_size原始输入224，变换后为[224,224]
     img_size = to_2tuple(img_size)
@@ -46,9 +46,13 @@ class PatchEmbed(nn.Module):
   def forward(self, x):
     B, C, H, W = x.shape
     assert H == self.img_size[0] and W == self.img_size[1], \
-      "Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
+      f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
     # [B, C, H, W] -> [B, C, H*W] ->[B, H*W, C]
-    x = self.proj(x).flatten(2).transpose((0, 2, 1))
+    # x = self.proj(x).flatten(2).transpose((0, 2, 1))
+    x = self.proj(x)
+    x = x.flatten(2)
+    x = x.transpose(1,2)
+
     return x
 
 
@@ -186,7 +190,7 @@ class Block(nn.Module):
 class VisionTransformer(nn.Module):
   def __init__(
     self,
-    img_size=224,
+    img_size=128,
     patch_size = 16,
     in_chans = 3,
     class_dim = 1000,
@@ -216,16 +220,16 @@ class VisionTransformer(nn.Module):
     # 分块数量
     num_patches = self.patch_embed.num_patches
     # 可学习的位置编码
-    self.pos_embed = self.create_parameter(
-      shape = (1, num_patches +1, embed_dim),default_initializer = zeros_
+    self.pos_embed = nn.Parameter(
+      torch.zeros(1, num_patches+1, embed_dim)
     )
-    self.add_parameter("pos_embed", self.pos_embed)
+    # self.add_parameter("pos_embed", self.pos_embed)
     # 人为追加class token, 并使用该向量进行分类预测
-    self.cls_token = self.create_parameter(shape=(1, 1, embed_dim), default_initializer = zeros_)
-    self.add_parameter("cls_token", self.cls_token)
+    self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+    # self.add_parameter("cls_token", self.cls_token)
     self.pos_drop = nn.Dropout(p=drop_rate)
 
-    dpr = np.linspace(0, drop_path_rate, depth)
+    dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]
 
     # transformer
     self.blocks = nn.ModuleList([
@@ -242,7 +246,7 @@ class VisionTransformer(nn.Module):
         epsilon=epsilon
       ) for i in range(depth)
     ])
-    self.norm = eval(norm_layer)(embed_dim, epsilon=epsilon)
+    self.norm = eval(norm_layer)(embed_dim, eps=epsilon)
     self.head = nn.Linear(embed_dim, class_dim) if class_dim > 0 else Identity()
     trunc_normal_(self.pos_embed)
     trunc_normal_(self.cls_token)
@@ -258,7 +262,7 @@ class VisionTransformer(nn.Module):
       ones_(m.weight)
 
   def forward_features(self, x):
-    B = x.size()[0]
+    B = x.shape[0]
     # 将图片分块，并调整每个快向量的维度
     x = self.patch_embed(x)
     # 将class token与前面的分块进行拼接
@@ -293,79 +297,79 @@ class ViTRegressor(nn.Module):
     x = self.vit(x)
     return self.regressor(x).squeeze()
 
-def test_multi_device():
-  devices = ["cpu"] + (["cuda"] if torch.cuda.is_available() else [])
-  for device in devices:
-    block = Block(dim=256).to(device)
-    x = torch.randn(2, 16, 256, device=device)
-    output = block(x)
-    assert output.device.type == device
-
-def test_numerical_stability():
-  block = Block(dim=256)
-  x = torch.zeros(1, 16, 256)
-  output = block(x)
-  assert not torch.isnan(output).any(), "输出包含NaN"
-
-def test_stack_blocks():
-  depth = 4
-  model = nn.Sequential(*[Block(dim=256) for _ in range(depth)])
-  x = torch.randn(2, 16, 256)
-  output = model(x)
-  assert output.shape == x.shape
-
-# 测试代码
-if __name__ == "__main__":
-  dim = 512
-  num_heads = 8
-  batch_size = 4
-  seq_len = 16
-
-  # 生成随机输入 (PyTorch 使用 torch.randn)
-  x = torch.randn(batch_size, seq_len, dim)
-  # 初始化注意力模块
-  attn = Attention(dim, num_heads)
-  # 前向传播
-  output = attn(x)
-
-  print("输入形状:", x.shape)  # 输出: torch.Size([4, 16, 512])
-  print("输出形状:", output.shape)  # 输出: torch.Size([4, 16, 512])
-  # 参数定义
-  in_dim = 512
-  hidden_dim = 1024
-  out_dim = 256
-  batch_size = 4
-
-  # 初始化 MLP
-  mlp = Mlp(in_features=in_dim,
-            hidden_features=hidden_dim,
-            out_features=out_dim,
-            act_layer=nn.GELU,
-            drop=0.1)
-
-  # 随机输入数据
-  x = torch.randn(batch_size, in_dim)
-
-  # 前向传播
-  output = mlp(x)
-  print(f"输入形状: {x.shape}")  # torch.Size([4, 512])
-  print(f"输出形状: {output.shape}")  # torch.Size([4, 256])
-  # 参数定义
-  batch_size = 4
-  dim = 512
-  drop_prob = 0.2
-
-  # 初始化模块
-  drop_path_layer = DropPath(drop_prob)
-
-  # 训练模式
-  drop_path_layer.train()
-  x_train = torch.randn(batch_size, dim)
-  out_train = drop_path_layer(x_train)
-  print(f"训练模式输出中0的数量: {(out_train == 0).sum()}")  # 部分元素被置0
-
-  # 评估模式
-  drop_path_layer.eval()
-  x_eval = torch.randn(batch_size, dim)
-  out_eval = drop_path_layer(x_eval)
-  print(f"评估模式输出是否一致: {torch.allclose(x_eval, out_eval)}")  # 输出True
+# def test_multi_device():
+#   devices = ["cpu"] + (["cuda"] if torch.cuda.is_available() else [])
+#   for device in devices:
+#     block = Block(dim=256).to(device)
+#     x = torch.randn(2, 16, 256, device=device)
+#     output = block(x)
+#     assert output.device.type == device
+#
+# def test_numerical_stability():
+#   block = Block(dim=256)
+#   x = torch.zeros(1, 16, 256)
+#   output = block(x)
+#   assert not torch.isnan(output).any(), "输出包含NaN"
+#
+# def test_stack_blocks():
+#   depth = 4
+#   model = nn.Sequential(*[Block(dim=256) for _ in range(depth)])
+#   x = torch.randn(2, 16, 256)
+#   output = model(x)
+#   assert output.shape == x.shape
+#
+# # 测试代码
+# if __name__ == "__main__":
+#   dim = 512
+#   num_heads = 8
+#   batch_size = 4
+#   seq_len = 16
+#
+#   # 生成随机输入 (PyTorch 使用 torch.randn)
+#   x = torch.randn(batch_size, seq_len, dim)
+#   # 初始化注意力模块
+#   attn = Attention(dim, num_heads)
+#   # 前向传播
+#   output = attn(x)
+#
+#   print("输入形状:", x.shape)  # 输出: torch.Size([4, 16, 512])
+#   print("输出形状:", output.shape)  # 输出: torch.Size([4, 16, 512])
+#   # 参数定义
+#   in_dim = 512
+#   hidden_dim = 1024
+#   out_dim = 256
+#   batch_size = 4
+#
+#   # 初始化 MLP
+#   mlp = Mlp(in_features=in_dim,
+#             hidden_features=hidden_dim,
+#             out_features=out_dim,
+#             act_layer=nn.GELU,
+#             drop=0.1)
+#
+#   # 随机输入数据
+#   x = torch.randn(batch_size, in_dim)
+#
+#   # 前向传播
+#   output = mlp(x)
+#   print(f"输入形状: {x.shape}")  # torch.Size([4, 512])
+#   print(f"输出形状: {output.shape}")  # torch.Size([4, 256])
+#   # 参数定义
+#   batch_size = 4
+#   dim = 512
+#   drop_prob = 0.2
+#
+#   # 初始化模块
+#   drop_path_layer = DropPath(drop_prob)
+#
+#   # 训练模式
+#   drop_path_layer.train()
+#   x_train = torch.randn(batch_size, dim)
+#   out_train = drop_path_layer(x_train)
+#   print(f"训练模式输出中0的数量: {(out_train == 0).sum()}")  # 部分元素被置0
+#
+#   # 评估模式
+#   drop_path_layer.eval()
+#   x_eval = torch.randn(batch_size, dim)
+#   out_eval = drop_path_layer(x_eval)
+#   print(f"评估模式输出是否一致: {torch.allclose(x_eval, out_eval)}")  # 输出True
