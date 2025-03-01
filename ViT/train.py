@@ -49,7 +49,8 @@ def train():
     lr=config["lr"],
     weight_decay=config["weight_decay"]
   )
-  best_acc = 0.0
+
+  best_mae= float("inf")
   for epoch in range(config["epochs"]):
     model.train()
     train_loss = 0.0
@@ -58,7 +59,7 @@ def train():
 
     for images, labels in progress_bar:
       images = images.to(config["device"])
-      labels = labels.to(config["device"])
+      labels = labels.to(config["device"]).float()
 
       output = model(images)
       loss = criterion(output, labels)
@@ -72,8 +73,10 @@ def train():
 
     model.eval()
     val_loss = 0.0
-    correct = 0
-    total = 0
+    all_outputs = []
+    all_labels = []
+    # correct = 0
+    # total = 0
     with torch.no_grad():
       for images, labels in val_loader:
         images = images.to(config["device"])
@@ -82,22 +85,26 @@ def train():
         outputs = model(images)
         loss = criterion(outputs, labels)
         val_loss += loss.item() * images.size(0)
-        _, predicted = outputs.max(1)
-        total += labels.size(0)
-        correct += predicted.eq(labels).sum().item()
+        all_outputs.append(outputs.cpu())
+        all_labels.append(labels.cpu())
+        # _, predicted = outputs.max(1)
+        # total += labels.size(0)
+        # correct += predicted.eq(labels).sum().item()
 
-    train_loss = train_loss / len(train_loader.dataset)
+    # train_loss = train_loss / len(train_loader.dataset)
+    # val_loss = val_loss / len(val_loader.dataset)
+    # val_acc = 100. * correct / total
     val_loss = val_loss / len(val_loader.dataset)
-    val_acc = 100. * correct / total
-    print(f"Epoch{epoch+1}| "
-          f"Train Loss: {train_loss:.4f}|"
-          f"Val Loss: {val_loss:.4f}|"
-          f"Val Acc: {val_acc:.2f}%")
+    outputs = torch.cat(all_outputs).squeeze()
+    labels = torch.cat(all_labels)
+    mae = (outputs - labels).abs().mean().item()
+    print(f"Epoch {epoch+1} | Val Loss: {val_loss:.4f} | MAE: {mae:.4f}")
 
-    if val_acc > best_acc:
-      best_acc = val_acc
+    if mae < best_mae:
+      best_mae = mae
       torch.save(model.state_dict(), config["save_path"])
-      print(f"Saved new best model with acc{best_acc:.2f}%")
+      print(f"Saved new best model with MAE{mae:.4f}")
+
 
 if __name__ == "__main__":
 

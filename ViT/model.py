@@ -284,6 +284,7 @@ class VisionTransformer(nn.Module):
     x = self.forward_features(x)
     # 图像分类
     x = self.head(x)
+    x = x.squeeze(-1)
     return x
 
 
