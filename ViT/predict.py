@@ -33,7 +33,7 @@ def evaluate_model(model, test_loader, device):
 
   print(f"MAE: {mae:.4f}")
   print(f"RMSE: {rmse:.4f}")
-  # print(f"R2 Score: {r2:.4f}")
+  print(f"R2 Score: {r2:.4f}")
 
   plt.figure(figsize=(10, 6))
   plt.scatter(true_labels, pred_labels, alpha=0.5)

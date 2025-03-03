@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torchvision import transforms
 from tqdm import tqdm
+from functools import partial
 
 
 def to_2tuple(x):
@@ -202,8 +203,7 @@ class VisionTransformer(nn.Module):
     img_size=128,
     patch_size=16,
     in_chans=3,
-    class_dim=1000,
-    embed_dim=768,
+    embed_dim=512,
     depth=12,
     num_heads=12,
     mlp_ratio=4,
@@ -212,12 +212,10 @@ class VisionTransformer(nn.Module):
     drop_rate=0.,
     attn_drop_rate=0.,
     drop_path_rate=0.,
-    norm_layer='nn.LayerNorm',
-    epsilon=1e-5,
-    **args
+    norm_layer = partial(nn.LayerNorm, eps=1e-5),
+    **kwargs
   ):
     super().__init__()
-    self.class_dim = class_dim
     self.num_features = self.embed_dim = embed_dim
     # 图片分块和降维，块大小为patch_size，最终块向量维度为768
     self.patch_embed = PatchEmbed(
@@ -232,10 +230,8 @@ class VisionTransformer(nn.Module):
     self.pos_embed = nn.Parameter(
       torch.zeros(1, num_patches + 1, embed_dim)
     )
-    # self.add_parameter("pos_embed", self.pos_embed)
-    # 人为追加class token, 并使用该向量进行分类预测
-    self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-    # self.add_parameter("cls_token", self.cls_token)
+    # 回归专用token
+    self.reg_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
     self.pos_drop = nn.Dropout(p=drop_rate)
 
     dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]
@@ -252,31 +248,34 @@ class VisionTransformer(nn.Module):
         attn_drop=attn_drop_rate,
         drop_path=dpr[i],
         norm_layer=norm_layer,
-        epsilon=epsilon
       ) for i in range(depth)
     ])
-    self.norm = eval(norm_layer)(embed_dim, eps=epsilon)
-    self.head = nn.Linear(embed_dim, class_dim) if class_dim > 0 else Identity()
-    trunc_normal_(self.pos_embed)
-    trunc_normal_(self.cls_token)
+    self.norm = norm_layer(embed_dim)
+    self.reg_head = nn.Sequential(
+      nn.Linear(embed_dim, embed_dim//2),
+      nn.GELU(),
+      nn.Linear(embed_dim//2, 1)
+    )
+    trunc_normal_(self.pos_embed, std=0.02)
+    trunc_normal_(self.cls_token, std=0.02)
     self.apply(self._init_weights)
 
   def _init_weights(self, m):
     if isinstance(m, nn.Linear):
-      trunc_normal_(m.weight)
-      if isinstance(m, nn.Linear) and m.bias is not None:
-        zeros_(m.bias)
+      trunc_normal_(m.weight, std=0.02)
+      if m.bias is not None:
+        nn.init.constant_(m.bias, 0)
     elif isinstance(m, nn.LayerNorm):
-      zeros_(m.bias)
-      ones_(m.weight)
+      nn.init.constant_(m.bias, 0)
+      nn.init.constant_(m.weight, 1.0)
 
   def forward_features(self, x):
     B = x.shape[0]
     # 将图片分块，并调整每个快向量的维度
     x = self.patch_embed(x)
     # 将class token与前面的分块进行拼接
-    cls_tokens = self.cls_token.expand((B, -1, -1))
-    x = torch.concat((cls_tokens, x), dim=1)
+    reg_tokens = self.reg_token.expand(B, -1, -1)
+    x = torch.cat((reg_tokens, x), dim=1)
     # 将编码向量中加入位置编码
     x = x + self.pos_embed
     x = self.pos_drop(x)
@@ -469,7 +468,7 @@ def create_loaders(batch_size=32):
 
 config = {
   "device": "cuda" if torch.cuda.is_available() else "cpu",
-  "lr": 3e-1,
+  "lr": 1e-1,
   "epochs": 50,
   "batch_size": 32,
   "num_workers": 8,

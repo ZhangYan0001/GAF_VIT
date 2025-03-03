@@ -8,7 +8,7 @@ import data.get_dataset as gds
 
 config = {
   "device": "cuda" if torch.cuda.is_available() else "cpu",
-  "lr": 3e-1,
+  "lr": 1e-4,
   "epochs": 50,
   "batch_size": 32,
   "num_workers": 8,
