@@ -9,7 +9,7 @@ import data.get_feature as gf
 
 def resample(series, new_length):
   x_original = np.linspace(0,1, len(series))
-  x_new = np.linspace((0, 1, new_length))
+  x_new = np.linspace(0, 1, new_length)
   f = interp1d(x_original, series, kind='linear')
   return f(x_new)
 
@@ -22,13 +22,12 @@ def gaf_show(norma_value,image_size):
   gaf_image = gaf.fit_transform(norma_value.reshape(-1,1))
   return gaf_image
 
-# def draw_plot(g_img):
 def conv_gaf_image():
   dfs = gf.dfs
   df_keys = gf.df_keys
   for df_key in df_keys:
     Caps = gf.read_dfs_by_cycle_toCap(df_key, dfs)
-    output_path = r"F:\New\Coding\GAF_VIT\images"+f"\\{df_key}-images\\"
+    output_path = r"F:\New\Coding\GAF_VIT\images3"+f"\\{df_key}-images\\"
     if not os.path.exists(output_path):
       try:
         os.makedirs(output_path, exist_ok=True)
@@ -43,15 +42,17 @@ def conv_gaf_image():
       caps = Caps[i]
       print(caps)
 
-      if len(caps) < 124:
-        caps_last = caps[-1]
-        for _ in range(124-len(caps)):
-          caps = list(caps)
-          caps.append(caps_last)
+      caps_resampled = np.array(resample(caps,128))
 
-        caps = np.array(caps)
+      # if len(caps) < 128:
+      #   caps_last = caps[-1]
+      #   for _ in range(128-len(caps)):
+      #     caps = list(caps)
+      #     caps.append(caps_last)
+      #
+      #   caps = np.array(caps)
 
-      print("this is len: ",len(caps))
+      print("this is len: ",len(caps_resampled))
 
       scaler = MinMaxScaler(feature_range=(-1,1))
       caps_normalized = scaler.fit_transform(caps.reshape(-1, 1)).flatten()
@@ -72,8 +73,10 @@ def conv_gaf_image():
       plt.yticks([])
       plt.axis("off")
       plt.tight_layout()
-      plt.savefig(output_path+f"{df_key}"+f"-{i}.png")
+      plt.savefig(output_path+f"{df_key}"+f"-{i}.png", bbox_inches ="tight", pad_inches=0)
 
 
-
+if __name__ == '__main__':
+    # print_hi('PyCharm')
+    conv_gaf_image()
 

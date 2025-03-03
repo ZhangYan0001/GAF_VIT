@@ -9,7 +9,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 import data.get_soh as gs
 
-image_path = r"F:\New\Coding\GAF_VIT\images"
+image_path = r"F:\New\Coding\GAF_VIT\images3"
 image_keys = [
   "XQ-11",
   "XQ-12",
@@ -193,7 +193,7 @@ def create_loaders(batch_size=32):
 
 # 使用示例
 if __name__ == "__main__":
-  train_loader, val_loader, test_loader = create_loaders(batch_size=32)
+  train_loader, val_loader, test_loader = create_loaders(batch_size=16)
 
   # 验证数据流
   for images, labels in train_loader:

@@ -33,7 +33,7 @@ def evaluate_model(model, test_loader, device):
 
   print(f"MAE: {mae:.4f}")
   print(f"RMSE: {rmse:.4f}")
-  print(f"R2 Score: {r2:.4f}")
+  # print(f"R2 Score: {r2:.4f}")
 
   plt.figure(figsize=(10, 6))
   plt.scatter(true_labels, pred_labels, alpha=0.5)
@@ -87,7 +87,7 @@ if __name__ == "__main__":
   print("Evaluating on test set:")
 
   evaluate_model(model, test_loader, config["device"])
-  sample_image_path = r"F:\New\Coding\GAF_VIT\images\XQ-15-images\XQ-15-363.png"
+  sample_image_path = r"F:\New\Coding\GAF_VIT\images\XQ-15-images\XQ-15-789.png"
   prediction = predict_single_image(
     model=model,
     image_path=sample_image_path,
