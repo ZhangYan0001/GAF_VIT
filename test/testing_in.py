@@ -204,8 +204,8 @@ class VisionTransformer(nn.Module):
     patch_size=16,
     in_chans=3,
     embed_dim=512,
-    depth=12,
-    num_heads=12,
+    depth=6,
+    num_heads=8,
     mlp_ratio=4,
     qkv_bias=False,
     qk_scale=None,
@@ -484,13 +484,14 @@ def train():
     img_size=128,
     patch_size=16,
     in_chans=3,
-    class_dim=1,
-    embed_dim=768,
-    depth=12,
-    num_heads=12,
-    mlp_ratio=4,
+    embed_dim=512,
+    depth=6,
+    num_heads=8,
+    mlp_ratio=2,
     qkv_bias=True,
-    norm_layer="nn.LayerNorm"
+    drop_rate=0.1,
+    attn_drop_rate=0.1,
+    norm_layer=partial(nn.LayerNorm, eps=1e-5)
   ).to(config["device"])
 
   criterion = nn.MSELoss()
