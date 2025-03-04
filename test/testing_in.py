@@ -95,7 +95,7 @@ class Attention(nn.Module):
     nn.init.constant_(self.proj.bias, 0)
 
   def forward(self, x):
-    B, N, C = x.size()
+    B, N, C = x.shape
     # 线性变换
     # qkv = self.qkv(x).reshape((batch_size, N, 3, self.num_heads, C //
     #                            self.num_heads)).permute((2, 0, 3, 1, 4))
