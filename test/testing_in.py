@@ -569,10 +569,8 @@ def train():
     mae = (outputs - labels).abs().mean().item()
     print(f"Epoch {epoch + 1} | Val Loss: {val_loss:.4f} | MAE: {mae:.4f}")
 
-    if mae < best_mae:
-      best_mae = mae
-      torch.save(model.state_dict(), config["save_path"])
-      print(f"Saved new best model with MAE{mae:.4f}")
+  torch.save(model.state_dict(), config["save_path"])
+  print("Saved the model ")
 
 
 if __name__ == "__main__":
