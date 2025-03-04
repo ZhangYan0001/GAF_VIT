@@ -230,7 +230,7 @@ class VisionTransformer(nn.Module):
     self,
     img_size=128,
     patch_size=16,
-    in_chans=1,
+    in_chans=3,
     embed_dim=512,
     depth=6,
     num_heads=8,
@@ -495,7 +495,7 @@ def create_loaders(batch_size=32):
 config = {
   "device": "cuda" if torch.cuda.is_available() else "cpu",
   "lr": 1e-1,
-  "epochs": 50,
+  "epochs": 30,
   "batch_size": 32,
   "num_workers": 8,
   "weight_decay": 0.05,
@@ -509,7 +509,7 @@ def train():
   model = VisionTransformer(
     img_size=128,
     patch_size=8,
-    in_chans=1,
+    in_chans=3,
     embed_dim=512,
     depth=6,
     num_heads=8,
