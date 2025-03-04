@@ -77,7 +77,7 @@ class Attention(nn.Module):
                proj_drop=0.):
     super().__init__()
     self.num_heads = num_heads
-    assert dim % num_heads == 0
+    assert dim % num_heads == 0, "dim 必须能被num_heads整除"
     self.head_dim = dim // num_heads
     self.scale = qk_scale or self.head_dim ** -0.5
     # 计算 q,k,v 的转移矩阵
@@ -109,7 +109,7 @@ class Attention(nn.Module):
     attn = F.softmax(attn, dim=-1)
     attn = self.attn_drop(attn)
     # Matmul
-    x = torch.einsum("bhid,bhjd->bhid", attn, v)
+    x = torch.einsum("bhij,bhjd->bhid", attn, v)
     x = x.transpose(1, 2).reshape(B, N, C)
     # 线性变换
     x = self.proj(x)
@@ -313,7 +313,7 @@ class VisionTransformer(nn.Module):
     # 获取图像特征
     x = self.forward_features(x)
     # 图像分类
-    x = self.head(x)
+    x = self.reg_head(x)
     x = x.squeeze(-1)
     return x
 
