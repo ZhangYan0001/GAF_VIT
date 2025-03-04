@@ -494,8 +494,8 @@ def create_loaders(batch_size=32):
 
 config = {
   "device": "cuda" if torch.cuda.is_available() else "cpu",
-  "lr": 1e-1,
-  "epochs": 30,
+  "lr": 3e-1,
+  "epochs": 50,
   "batch_size": 32,
   "num_workers": 8,
   "weight_decay": 0.05,
@@ -510,12 +510,12 @@ def train():
     img_size=128,
     patch_size=8,
     in_chans=3,
-    embed_dim=512,
-    depth=6,
-    num_heads=8,
+    embed_dim=192,
+    depth=4,
+    num_heads=6,
     mlp_ratio=2,
     qkv_bias=True,
-    drop_rate=0.1,
+    drop_rate=0.2,
     attn_drop_rate=0.1,
     norm_layer=partial(nn.LayerNorm, eps=1e-5)
   ).to(config["device"])
