@@ -296,7 +296,7 @@ class VisionTransformer(nn.Module):
     return x
 
 
-image_path = r"F:\New\Coding\GAF_VIT\images3"
+image_path = r"/home/shunlizhang/zy/images3"
 image_keys = [
   "XQ-11",
   "XQ-12",
@@ -403,7 +403,7 @@ def get_val_transform():
 # 创建完整数据集
 def create_loaders(batch_size=32):
   # 获取所有路径和标签
-  SOH_Labels = get_soh_dict(r"F:\New\Coding\GAF_VIT\data\soh_data.json")
+  SOH_Labels = get_soh_dict(r"/home/shunlizhang/zy/gaf_-vit/data/soh_data.json")
   all_paths = get_images_path(image_path, image_keys)
   all_labels = get_labels(all_paths, SOH_Labels)
 
