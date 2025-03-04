@@ -494,7 +494,7 @@ def create_loaders(batch_size=32):
 
 config = {
   "device": "cuda" if torch.cuda.is_available() else "cpu",
-  "lr": 3e-1,
+  "lr": 3e-4,
   "epochs": 50,
   "batch_size": 32,
   "num_workers": 8,
