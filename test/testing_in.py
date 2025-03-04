@@ -209,7 +209,13 @@ class Block(nn.Module):
     self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
     self.norm2 = norm_layer(dim)
     mlp_hidden_dim = int(dim * mlp_ratio)
-    self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+    self.mlp = Mlp(
+      in_features=dim,
+      hidden_features=mlp_hidden_dim,
+      act_layer=act_layer,
+      drop=drop,
+      use_ln=True
+    )
 
   def forward(self, x):
     # Multi-head Self-attent , add, LayerNorm
@@ -224,12 +230,12 @@ class VisionTransformer(nn.Module):
     self,
     img_size=128,
     patch_size=16,
-    in_chans=3,
+    in_chans=1,
     embed_dim=512,
     depth=6,
     num_heads=8,
     mlp_ratio=4,
-    qkv_bias=False,
+    qkv_bias=True,
     qk_scale=None,
     drop_rate=0.,
     attn_drop_rate=0.,
@@ -335,11 +341,13 @@ train_image_keys = [
   "XQ-15"
 ]
 test_image_keys = [
-  "XQ-16",
-  "XQ-17"
+  "XQ-16"
 ]
 
-val_image_keys = ["XQ-18"]
+val_image_keys = [
+  "XQ-18",
+  "XQ-17"
+]
 
 
 def get_soh_dict(file_path: str):
@@ -381,7 +389,6 @@ class BatteryDataset(Dataset):
     self.img_keys = img_keys
     self.transform = transform
     self.path_data = get_images_path(img_dir, img_keys)
-    # self.labels = gs.get_soh_labels()
     self.labels = labels
 
   def __len__(self):
@@ -389,9 +396,6 @@ class BatteryDataset(Dataset):
 
   def __getitem__(self, index):
     img_path = self.path_data[index]
-    # img_path_key = "XQ-" + image_path.split("\\")[-1].split("-")[1]
-    # img_path_index = image_path.split("\\")[-1].split("-")[-1].split(".")[0]
-    # label = self.labels[img_path_key][int(img_path_index)]
     label = self.labels[index]
     image = Image.open(img_path).convert("RGB")
     label = torch.tensor(label, dtype=torch.float)
@@ -504,8 +508,8 @@ train_loader, val_loader, test_loader = create_loaders()
 def train():
   model = VisionTransformer(
     img_size=128,
-    patch_size=16,
-    in_chans=3,
+    patch_size=8,
+    in_chans=1,
     embed_dim=512,
     depth=6,
     num_heads=8,
