@@ -662,7 +662,7 @@ def train_cnn():
   )
   scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer,
-    model="min",
+    mode="min",
     factor=0.5,
     patience=5,
     verbose=True
