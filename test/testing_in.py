@@ -763,8 +763,8 @@ def test_cnn(model, test_loader, checkpoint_path="best_model.pth", device=None):
       loss = criterion(outputs, labels)
       total_loss += loss.item() * images.size(0)
 
-      all_outputs.append(outputs.cpu())
-      all_labels.append(labels.cpu())
+      all_outputs.append(outputs.cpu().numpy())
+      all_labels.append(labels.cpu().numpy())
 
   # 计算整体误差
   test_loss = total_loss / len(test_loader.dataset)
@@ -815,7 +815,7 @@ def plot_results(outputs, labels, num_samples=100):
 if __name__ == "__main__":
   # train()
 
-  train_cnn()
+  # train_cnn()
   cnn_outputs, cnn_labels, cnn_rmse, cnn_r2 = test_cnn(
     CNNRegressor(),
     test_loader,
