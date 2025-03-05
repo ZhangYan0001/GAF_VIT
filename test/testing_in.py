@@ -730,7 +730,7 @@ def train_cnn():
   print("Training complete.")
 
 
-def test_cnn(model, test_loader, checkpoint_path="best_model.pth", device=None):
+def evaluate_model(model, test_loader, checkpoint_path="best_model.pth", device=None):
   """
   使用训练好的 CNN 模型进行测试并评估性能。
 
@@ -815,11 +815,20 @@ if __name__ == "__main__":
   # train()
 
   # train_cnn()
-  cnn_outputs, cnn_labels, cnn_rmse, cnn_r2 = test_cnn(
+  print("this the cnn model evaluate result: ")
+  cnn_outputs, cnn_labels, cnn_rmse, cnn_r2 = evaluate_model(
     CNNRegressor(),
     test_loader,
     "./best_cnn_model.pth"
   )
   plot_results(cnn_outputs, cnn_labels)
+
+  print("this the vit model evaluate result: ")
+  vit_outputs, vit_labels, vit_rmse, vit_r2 = evaluate_model(
+    VisionTransformer(),
+    test_loader,
+    "./best_model2.pth"
+  )
+  plot_results(vit_outputs, vit_labels)
 
 
