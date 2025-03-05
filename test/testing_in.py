@@ -573,7 +573,7 @@ config = {
   "epochs": 50,
   "batch_size": 32,
   "num_workers": 8,
-  "weight_decay": 0.05,
+  "weight_decay": 0.01,
   "save_path": "./best_vit_model.pth"
 }
 
@@ -585,9 +585,9 @@ def train_vit():
     img_size=128,
     patch_size=16,
     in_chans=3,
-    embed_dim=96,
-    depth=4,
-    num_heads=6,
+    embed_dim=768,
+    depth=8,
+    num_heads=12,
     mlp_ratio=2,
     qkv_bias=True,
     drop_rate=0.2,
@@ -596,7 +596,7 @@ def train_vit():
   ).to(config["device"])
 
   criterion = nn.MSELoss()
-  optimizer = torch.optim.Adam(
+  optimizer = torch.optim.AdamW(
     model.parameters(),
     lr=config["lr"],
     weight_decay=config["weight_decay"]
@@ -865,9 +865,9 @@ if __name__ == "__main__":
     VisionTransformer(img_size=128,
     patch_size=16,
     in_chans=3,
-    embed_dim=96,
-    depth=4,
-    num_heads=6,
+    embed_dim=798,
+    depth=8,
+    num_heads=12,
     mlp_ratio=2,
     qkv_bias=True,),
     test_loader,
