@@ -2,14 +2,16 @@ import json
 import os
 import pathlib
 from functools import partial
-from torch.utils.tensorboard import SummaryWriter
+import numpy as np
+from sklearn.metrics import r2_score
+import matplotlib.pyplot as plt
 
 import torch
 import torch.cuda
-import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
+import torch.optim as optim
 from PIL import Image
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
@@ -325,6 +327,7 @@ class VisionTransformer(nn.Module):
     x = x.squeeze(-1)
     return x
 
+
 class CNNRegressor(nn.Module):
   def __init__(self,
                input_size=128,  # 输入图像尺寸
@@ -393,6 +396,7 @@ class CNNRegressor(nn.Module):
     x = self.features(x)
     x = torch.flatten(x, 1)  # 展平特征图
     return self.regressor(x).squeeze(-1)
+
 
 image_path = r"/home/shunlizhang/zy/images3"
 image_keys = [
@@ -642,12 +646,13 @@ def train():
   torch.save(model.state_dict(), config["save_path"])
   print("Saved the model ")
 
+
 def train_cnn():
   config = {
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "lr": 1e-4,
     "weight_decay": 0.05,
-    "epochs": 100
+    "epochs": 50
   }
   model = CNNRegressor(
     input_size=128,
@@ -667,8 +672,6 @@ def train_cnn():
     patience=5,
     verbose=True
   )
-
-  writer = SummaryWriter()
 
   best_mae = float("inf")
   for epoch in range(config["epochs"]):
@@ -717,9 +720,6 @@ def train_cnn():
     mae = (outputs - labels).abs().mean().item()
     print(f"Epoch {epoch + 1} | Val Loss: {val_loss:.4f} | MAE: {mae:.4f}")
 
-    writer.add_scalar("Loss/Train", train_loss, epoch)
-    writer.add_scalar("Loss/Validation", val_loss, epoch)
-    writer.add_scalar("MAE/Validation", mae, epoch)
     scheduler.step(val_loss)
 
     if mae < best_mae:
@@ -727,11 +727,100 @@ def train_cnn():
       torch.save(model.state_dict(), config["save_path"])
       print(f"Saved the model with MAE: {best_mae:.4f}")
 
-  writer.close()
   print("Training complete.")
+
+
+def test_cnn(model, test_loader, checkpoint_path="best_model.pth", device=None):
+  """
+  使用训练好的 CNN 模型进行测试并评估性能。
+
+  参数：
+  - model: 训练好的 CNN 模型
+  - test_loader: 测试数据 DataLoader
+  - checkpoint_path: 训练好的模型权重文件路径
+  - device: 运行设备（自动检测 GPU 或 CPU）
+  """
+  # 自动选择设备
+  if device is None:
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+  model.to(device)
+  model.eval()
+
+  # 加载训练好的模型权重
+  model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+  print(f"Loaded model from {checkpoint_path}")
+
+  criterion = nn.MSELoss()  # 计算 MSE 误差
+  all_outputs, all_labels = [], []
+  total_loss = 0.0
+
+  with torch.no_grad():
+    for images, labels in tqdm(test_loader, desc="Testing"):
+      images, labels = images.to(device), labels.to(device)
+
+      outputs = model(images)
+      loss = criterion(outputs, labels)
+      total_loss += loss.item() * images.size(0)
+
+      all_outputs.append(outputs.cpu())
+      all_labels.append(labels.cpu())
+
+  # 计算整体误差
+  test_loss = total_loss / len(test_loader.dataset)
+  outputs = torch.cat(all_outputs).squeeze()
+  labels = torch.cat(all_labels)
+  mae = (outputs - labels).abs().mean().item()
+
+  # 计算 MAE
+  mae = np.mean(np.abs(outputs - labels))
+
+  # 计算 RMSE (均方根误差)
+  rmse = np.sqrt(np.mean((outputs - labels) ** 2))
+
+  # 计算 R² Score (决定系数)
+  r2 = r2_score(labels, outputs)
+
+  print(f"Test Loss (MSE): {test_loss:.4f}")
+  print(f"MAE: {mae:.4f}")
+  print(f"RMSE: {rmse:.4f}")
+  print(f"R² Score: {r2:.4f}")
+
+  return outputs, labels, rmse, r2
+
+def plot_results(outputs, labels, num_samples=100):
+  """
+  绘制预测值与真实值对比图。
+
+  参数：
+  - outputs: 预测值 (Tensor)
+  - labels: 真实值 (Tensor)
+  - num_samples: 要显示的样本数量（默认 100 个）
+  """
+  outputs = outputs.numpy()
+  labels = labels.numpy()
+
+  plt.figure(figsize=(10, 5))
+  plt.plot(labels[:num_samples], label="True Values", marker='o', linestyle="--")
+  plt.plot(outputs[:num_samples], label="Predicted Values", marker='s', linestyle="-")
+
+  plt.xlabel("Sample Index")
+  plt.ylabel("Value")
+  plt.legend()
+  plt.title("CNN Regression Results")
+  plt.grid(True)
+  plt.show()
 
 
 if __name__ == "__main__":
   # train()
 
   train_cnn()
+  cnn_outputs, cnn_labels, cnn_rmse, cnn_r2 = test_cnn(
+    CNNRegressor(),
+    test_loader,
+    "./best_cnn_model.pth"
+  )
+  plot_results(cnn_outputs, cnn_labels)
+
+
