@@ -763,14 +763,13 @@ def test_cnn(model, test_loader, checkpoint_path="best_model.pth", device=None):
       loss = criterion(outputs, labels)
       total_loss += loss.item() * images.size(0)
 
-      all_outputs.append(outputs.cpu().numpy())
-      all_labels.append(labels.cpu().numpy())
+      all_outputs.append(outputs.cpu().numpy().astype(np.float32))
+      all_labels.append(labels.cpu().numpy().astype(np.float32))
 
   # 计算整体误差
   test_loss = total_loss / len(test_loader.dataset)
-  outputs = torch.cat(all_outputs).squeeze()
-  labels = torch.cat(all_labels)
-  mae = (outputs - labels).abs().mean().item()
+  outputs = np.concatenate(all_outputs, axis=0)
+  labels = np.concatenate(all_labels, axis=0)
 
   # 计算 MAE
   mae = np.mean(np.abs(outputs - labels))
