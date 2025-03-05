@@ -849,9 +849,9 @@ def plot_results(outputs, labels, num_samples=100):
 
 
 if __name__ == "__main__":
-  # train()
-
-  # train_cnn()
+  train_vit()
+  #
+  # # train_cnn()
   print("this the cnn model evaluate result: ")
   cnn_outputs, cnn_labels, cnn_rmse, cnn_r2 = evaluate_model(
     CNNRegressor(),
@@ -862,8 +862,15 @@ if __name__ == "__main__":
 
   print("this the vit model evaluate result: ")
   vit_outputs, vit_labels, vit_rmse, vit_r2 = evaluate_model(
-    VisionTransformer(),
+    VisionTransformer(img_size=128,
+    patch_size=16,
+    in_chans=3,
+    embed_dim=96,
+    depth=4,
+    num_heads=6,
+    mlp_ratio=2,
+    qkv_bias=True,),
     test_loader,
-    "./best_model3.pth"
+    "./best_vit_model.pth"
   )
   plot_results(vit_outputs, vit_labels)
