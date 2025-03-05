@@ -843,7 +843,7 @@ def plot_results(outputs, labels, num_samples=100):
   plt.xlabel("Sample Index")
   plt.ylabel("Value")
   plt.legend()
-  plt.title("CNN Regression Results")
+  plt.title(" Regression Results")
   plt.grid(True)
   plt.show()
 
@@ -865,7 +865,7 @@ if __name__ == "__main__":
     VisionTransformer(img_size=128,
     patch_size=16,
     in_chans=3,
-    embed_dim=798,
+    embed_dim=768,
     depth=8,
     num_heads=12,
     mlp_ratio=2,
