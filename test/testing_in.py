@@ -796,8 +796,8 @@ def plot_results(outputs, labels, num_samples=100):
   - labels: 真实值 (Tensor)
   - num_samples: 要显示的样本数量（默认 100 个）
   """
-  outputs = outputs.numpy()
-  labels = labels.numpy()
+  # outputs = outputs.numpy()
+  # labels = labels.numpy()
 
   plt.figure(figsize=(10, 5))
   plt.plot(labels[:num_samples], label="True Values", marker='o', linestyle="--")
