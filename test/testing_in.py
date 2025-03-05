@@ -2,9 +2,11 @@ import json
 import os
 import pathlib
 from functools import partial
+from torch.utils.tensorboard import SummaryWriter
 
 import torch
 import torch.cuda
+import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
@@ -323,6 +325,74 @@ class VisionTransformer(nn.Module):
     x = x.squeeze(-1)
     return x
 
+class CNNRegressor(nn.Module):
+  def __init__(self,
+               input_size=128,  # 输入图像尺寸
+               in_channels=3,  # 输入通道数（GAF为单通道）
+               dropout_rate=0.3):  # 正则化强度
+    super().__init__()
+
+    # 特征提取器
+    self.features = nn.Sequential(
+      # Block 1: 128x128 -> 64x64
+      nn.Conv2d(in_channels, 64, kernel_size=3, padding=1),
+      nn.BatchNorm2d(64),
+      nn.ReLU(),
+      nn.MaxPool2d(2),
+      nn.Dropout(dropout_rate),
+
+      # Block 2: 64x64 -> 32x32
+      nn.Conv2d(64, 128, 3, padding=1),
+      nn.BatchNorm2d(128),
+      nn.ReLU(),
+      nn.MaxPool2d(2),
+      nn.Dropout(dropout_rate),
+
+      # Block 3: 32x32 -> 16x16
+      nn.Conv2d(128, 256, 3, padding=1),
+      nn.BatchNorm2d(256),
+      nn.ReLU(),
+      nn.MaxPool2d(2),
+      nn.Dropout(dropout_rate),
+
+      # Block 4: 16x16 -> 8x8
+      nn.Conv2d(256, 512, 3, padding=1),
+      nn.BatchNorm2d(512),
+      nn.ReLU(),
+      nn.MaxPool2d(2),
+      nn.Dropout(dropout_rate)
+    )
+
+    # 回归头
+    self.regressor = nn.Sequential(
+      nn.Linear(512 * 8 * 8, 1024),
+      nn.ReLU(),
+      nn.Dropout(dropout_rate),
+
+      nn.Linear(1024, 512),
+      nn.ReLU(),
+      nn.Dropout(dropout_rate),
+
+      nn.Linear(512, 1)
+    )
+
+    # 初始化权重
+    self._init_weights()
+
+  def _init_weights(self):
+    for m in self.modules():
+      if isinstance(m, nn.Conv2d):
+        nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        if m.bias is not None:
+          nn.init.constant_(m.bias, 0)
+      elif isinstance(m, nn.Linear):
+        nn.init.normal_(m.weight, 0, 0.01)
+        nn.init.constant_(m.bias, 0)
+
+  def forward(self, x):
+    x = self.features(x)
+    x = torch.flatten(x, 1)  # 展平特征图
+    return self.regressor(x).squeeze(-1)
 
 image_path = r"/home/shunlizhang/zy/images3"
 image_keys = [
@@ -572,6 +642,96 @@ def train():
   torch.save(model.state_dict(), config["save_path"])
   print("Saved the model ")
 
+def train_cnn():
+  config = {
+    "device": "cuda" if torch.cuda.is_available() else "cpu",
+    "lr": 1e-4,
+    "weight_decay": 0.05,
+    "epochs": 100
+  }
+  model = CNNRegressor(
+    input_size=128,
+    in_channels=3,
+    dropout_rate=0.3
+  ).to(config["device"])
+  criterion = nn.MSELoss()
+  optimizer = torch.optim.Adam(
+    model.parameters(),
+    lr=config["lr"],
+    weight_decay=config["weight_decay"]
+  )
+  scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer,
+    model="min",
+    factor=0.5,
+    patience=5,
+    verbose=True
+  )
+
+  writer = SummaryWriter()
+
+  best_mae = float("inf")
+  for epoch in range(config["epochs"]):
+    model.train()
+    train_loss = 0.0
+
+    progress_bar = tqdm(train_loader, desc=f"Epoch{epoch + 1}/{config['epochs']}")
+
+    for images, labels in progress_bar:
+      images = images.to(config["device"])
+      labels = labels.to(config["device"]).float()
+
+      optimizer.zero_grad()
+      output = model(images)
+      loss = criterion(output, labels)
+
+      if torch.isnan(loss):
+        print("Warning: NaN loss detected, skipping batch")
+        continue
+
+      loss.backward()
+      optimizer.step()
+
+      train_loss += loss.item() * images.size(0)
+      progress_bar.set_postfix({"loss": loss.item()})
+
+    train_loss /= len(train_loader.dataset)
+    model.eval()
+    val_loss = 0.0
+    all_outputs = []
+    all_labels = []
+    with torch.no_grad():
+      for images, labels in val_loader:
+        images = images.to(config["device"])
+        labels = labels.to(config["device"])
+
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+        val_loss += loss.item() * images.size(0)
+        all_outputs.append(outputs.cpu())
+        all_labels.append(labels.cpu())
+
+    val_loss = val_loss / len(val_loader.dataset)
+    outputs = torch.cat(all_outputs).squeeze()
+    labels = torch.cat(all_labels)
+    mae = (outputs - labels).abs().mean().item()
+    print(f"Epoch {epoch + 1} | Val Loss: {val_loss:.4f} | MAE: {mae:.4f}")
+
+    writer.add_scalar("Loss/Train", train_loss, epoch)
+    writer.add_scalar("Loss/Validation", val_loss, epoch)
+    writer.add_scalar("MAE/Validation", mae, epoch)
+    scheduler.step(val_loss)
+
+    if mae < best_mae:
+      best_mae = mae
+      torch.save(model.state_dict(), config["save_path"])
+      print(f"Saved the model with MAE: {best_mae:.4f}")
+
+  writer.close()
+  print("Training complete.")
+
 
 if __name__ == "__main__":
-  train()
+  # train()
+
+  train_cnn()
