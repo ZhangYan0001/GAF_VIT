@@ -2,10 +2,9 @@ import json
 import os
 import pathlib
 from functools import partial
-import numpy as np
-from sklearn.metrics import r2_score
-import matplotlib.pyplot as plt
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.cuda
 import torch.nn as nn
@@ -13,6 +12,8 @@ import torch.nn.functional as F
 import torch.nn.init as init
 import torch.optim as optim
 from PIL import Image
+from sklearn.metrics import r2_score
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torchvision import transforms
@@ -568,29 +569,29 @@ def create_loaders(batch_size=32):
 
 config = {
   "device": "cuda" if torch.cuda.is_available() else "cpu",
-  "lr": 3e-4,
+  "lr": 1e-4,
   "epochs": 50,
   "batch_size": 32,
   "num_workers": 8,
   "weight_decay": 0.05,
-  "save_path": "./best_model.pth"
+  "save_path": "./best_vit_model.pth"
 }
 
 train_loader, val_loader, test_loader = create_loaders()
 
 
-def train():
+def train_vit():
   model = VisionTransformer(
     img_size=128,
-    patch_size=8,
+    patch_size=16,
     in_chans=3,
-    embed_dim=192,
+    embed_dim=96,
     depth=4,
     num_heads=6,
     mlp_ratio=2,
     qkv_bias=True,
     drop_rate=0.2,
-    attn_drop_rate=0.1,
+    attn_drop_rate=0.2,
     norm_layer=partial(nn.LayerNorm, eps=1e-5)
   ).to(config["device"])
 
@@ -600,8 +601,25 @@ def train():
     lr=config["lr"],
     weight_decay=config["weight_decay"]
   )
+  warmup_epochs = 5
+  scheduler_warmup = LinearLR(
+    optimizer,
+    start_factor=0.01,
+    total_iters=warmup_epochs
+  )
+  scheduler_cos = CosineAnnealingLR(
+    optimizer,
+    T_max=config["epochs"] - warmup_epochs
+  )
+  scheduler = torch.optim.lr_scheduler.SequentialLR(
+    optimizer,
+    schedulers=[scheduler_warmup, scheduler_cos],
+    milestones=[warmup_epochs]
+  )
 
-  best_mae = float("inf")
+  best_r2 = -float("inf")
+  early_stop_counter = 0
+
   for epoch in range(config["epochs"]):
     model.train()
     train_loss = 0.0
@@ -609,18 +627,22 @@ def train():
     progress_bar = tqdm(train_loader, desc=f"Epoch{epoch + 1}/{config['epochs']}")
 
     for images, labels in progress_bar:
-      images = images.to(config["device"])
-      labels = labels.to(config["device"]).float()
+      images = images.to(config["device"], dtype=torch.float32)
+      labels = labels.to(config["device"], dtype=torch.float32)
 
-      output = model(images)
-      loss = criterion(output, labels)
+      with torch.autocast(device_type="cuda", dtype=torch.float16):
+        output = model(images)
+        loss = criterion(output.squeeze(), labels)
 
-      optimizer.zero_grad()
+      optimizer.zero_grad(set_to_none=True)
       loss.backward()
+      torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
       optimizer.step()
 
       train_loss += loss.item() * images.size(0)
       progress_bar.set_postfix({"loss": loss.item()})
+
+    scheduler.step()
 
     model.eval()
     val_loss = 0.0
@@ -628,11 +650,11 @@ def train():
     all_labels = []
     with torch.no_grad():
       for images, labels in val_loader:
-        images = images.to(config["device"])
-        labels = labels.to(config["device"])
+        images = images.to(config["device"], dtype=torch.float32)
+        labels = labels.to(config["device"], dtype=torch.float32)
 
         outputs = model(images)
-        loss = criterion(outputs, labels)
+        loss = criterion(outputs.squeeze(), labels)
         val_loss += loss.item() * images.size(0)
         all_outputs.append(outputs.cpu())
         all_labels.append(labels.cpu())
@@ -641,14 +663,28 @@ def train():
     outputs = torch.cat(all_outputs).squeeze()
     labels = torch.cat(all_labels)
     mae = (outputs - labels).abs().mean().item()
-    print(f"Epoch {epoch + 1} | Val Loss: {val_loss:.4f} | MAE: {mae:.4f}")
+    r2 = r2_score(labels.numpy(), outputs.numpy())
+    print(
+      f"Epoch {epoch + 1} | "
+      f"Val Loss: {val_loss:.4f} | "
+      f"MAE : {mae:.4f} | "
+      f"LR: {optimizer.param_groups[0]['lr']:.2f} | "
+    )
+    if r2 > best_r2:
+      best_r2 = r2
+      torch.save(model.state_dict(), config["save_path"])
+      early_stop_counter = 0
+      print("Saved the model ")
+    else:
+      early_stop_counter += 1
+      if early_stop_counter >=10:
+        print("Early stopping triggered!")
+        break
 
-  torch.save(model.state_dict(), config["save_path"])
-  print("Saved the model ")
-
+  print(f"Best R2 : {best_r2:.4f}")
 
 def train_cnn():
-  config = {
+  config_cnn = {
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "lr": 1e-4,
     "weight_decay": 0.05,
@@ -658,12 +694,12 @@ def train_cnn():
     input_size=128,
     in_channels=3,
     dropout_rate=0.3
-  ).to(config["device"])
+  ).to(config_cnn["device"])
   criterion = nn.MSELoss()
   optimizer = torch.optim.Adam(
     model.parameters(),
-    lr=config["lr"],
-    weight_decay=config["weight_decay"]
+    lr=config_cnn["lr"],
+    weight_decay=config_cnn["weight_decay"]
   )
   scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer,
@@ -674,15 +710,15 @@ def train_cnn():
   )
 
   best_mae = float("inf")
-  for epoch in range(config["epochs"]):
+  for epoch in range(config_cnn["epochs"]):
     model.train()
     train_loss = 0.0
 
-    progress_bar = tqdm(train_loader, desc=f"Epoch{epoch + 1}/{config['epochs']}")
+    progress_bar = tqdm(train_loader, desc=f"Epoch{epoch + 1}/{config_cnn['epochs']}")
 
     for images, labels in progress_bar:
-      images = images.to(config["device"])
-      labels = labels.to(config["device"]).float()
+      images = images.to(config_cnn["device"])
+      labels = labels.to(config_cnn["device"]).float()
 
       optimizer.zero_grad()
       output = model(images)
@@ -705,8 +741,8 @@ def train_cnn():
     all_labels = []
     with torch.no_grad():
       for images, labels in val_loader:
-        images = images.to(config["device"])
-        labels = labels.to(config["device"])
+        images = images.to(config_cnn["device"])
+        labels = labels.to(config_cnn["device"])
 
         outputs = model(images)
         loss = criterion(outputs, labels)
@@ -724,7 +760,7 @@ def train_cnn():
 
     if mae < best_mae:
       best_mae = mae
-      torch.save(model.state_dict(), config["save_path"])
+      torch.save(model.state_dict(), config_cnn["save_path"])
       print(f"Saved the model with MAE: {best_mae:.4f}")
 
   print("Training complete.")
@@ -787,6 +823,7 @@ def evaluate_model(model, test_loader, checkpoint_path="best_model.pth", device=
 
   return outputs, labels, rmse, r2
 
+
 def plot_results(outputs, labels, num_samples=100):
   """
   绘制预测值与真实值对比图。
@@ -827,8 +864,6 @@ if __name__ == "__main__":
   vit_outputs, vit_labels, vit_rmse, vit_r2 = evaluate_model(
     VisionTransformer(),
     test_loader,
-    "./best_model2.pth"
+    "./best_model3.pth"
   )
   plot_results(vit_outputs, vit_labels)
-
-
