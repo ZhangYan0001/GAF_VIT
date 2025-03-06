@@ -99,7 +99,7 @@ class BatteryDataset(Dataset):
     # img_path_index = image_path.split("\\")[-1].split("-")[-1].split(".")[0]
     # label = self.labels[img_path_key][int(img_path_index)]
     label = self.labels[index]
-    image = Image.open(img_path).convert("RGB")
+    image = Image.open(img_path).convert("L")
     label = torch.tensor(label, dtype=torch.float)
 
     if self.transform:
@@ -112,8 +112,9 @@ def get_train_transform():
     transforms.RandomHorizontalFlip(),  # 示例增强
     transforms.RandomRotation(10),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet标准参数
-                         std=[0.229, 0.224, 0.225])
+    # transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet标准参数
+    #                      std=[0.229, 0.224, 0.225])
+    transforms.Normalize(mean= 0.45, std=0.2)
   ])
 
 
@@ -121,8 +122,9 @@ def get_val_transform():
   return transforms.Compose([
     transforms.Resize((128, 128)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                         std=[0.229, 0.224, 0.225])
+    # transforms.Normalize(mean=[0.485, 0.456, 0.406],
+    #                      std=[0.229, 0.224, 0.225])
+    transforms.Normalize(mean=0.45, std=0.2)
   ])
 
 

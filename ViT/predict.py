@@ -48,7 +48,7 @@ def evaluate_model(model, test_loader, device):
 
 
 def predict_single_image(model, image_path, transform, device):
-  image = Image.open(image_path).convert("RGB")
+  image = Image.open(image_path).convert("L")
   image_tensor = transform(image).unsqueeze(0).to(device)
   model.eval()
   with torch.no_grad():
@@ -60,7 +60,7 @@ def predict_single_image(model, image_path, transform, device):
 if __name__ == "__main__":
   config = {
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "model_path": "../test/best_vit_model2.pth",
+    "model_path": r"F:\New\Coding\GAF_VIT\result\best_vit_model3.pth",
     "image_size": 128
   }
   test_transform = transforms.Compose([
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     #                      std=[0.229, 0.224, 0.225])
     transforms.Normalize(mean=0.45, std=0.2)
   ])
-  model = vit.VisionTransformer(
+  model =vit.VisionTransformer(
     img_size=config["image_size"],
     patch_size=16,
     in_chans=1,

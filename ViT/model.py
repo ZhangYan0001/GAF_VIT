@@ -4,13 +4,15 @@ import torch.nn as nn
 import torch.nn.init as init
 import torch.nn.functional as F
 from functools import partial
-import numpy as np
 
 def to_2tuple(x):
   return tuple([x] * 2)
 
 
 trunc_normal_ = init.trunc_normal_
+zeros_ = init.zeros_
+ones_ = init.ones_
+
 
 # 无操作的网络层
 class Identity(nn.Module):
@@ -49,7 +51,7 @@ class PatchEmbed(nn.Module):
     # x = self.proj(x).flatten(2).transpose((0, 2, 1))
     x = self.proj(x)
     x = x.flatten(2)
-    x = x.transpose(1,2)
+    x = x.transpose(1, 2)
 
     return x
 
@@ -61,34 +63,44 @@ class Attention(nn.Module):
                num_heads=8,
                qkv_bias=False,
                qk_scale=None,
-               attn_drop=0.,
+               attn_drop=0.1,
                proj_drop=0.):
     super().__init__()
     self.num_heads = num_heads
-    head_dim = dim // num_heads
-    self.scale = qk_scale or head_dim ** -0.5
+    assert dim % num_heads == 0, "dim 必须能被num_heads整除"
+    self.head_dim = dim // num_heads
+    self.scale = qk_scale or self.head_dim ** -0.5
     # 计算 q,k,v 的转移矩阵
     self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+    trunc_normal_(self.qkv.weight, std=0.02)
+    if qkv_bias:
+      nn.init.constant_(self.qkv.bias, 0)
+
     self.attn_drop = nn.Dropout(attn_drop)
     # 最终的线性层
     self.proj = nn.Linear(dim, dim)
     self.proj_drop = nn.Dropout(proj_drop)
+    # 投影层初始化
+    trunc_normal_(self.proj.weight, std=0.02)
+    nn.init.constant_(self.proj.bias, 0)
 
   def forward(self, x):
-    batch_size, N, C = x.size()
+    B, N, C = x.shape
     # 线性变换
-    qkv = self.qkv(x).reshape((batch_size, N, 3, self.num_heads, C //
-                               self.num_heads)).permute((2, 0, 3, 1, 4))
+    # qkv = self.qkv(x).reshape((batch_size, N, 3, self.num_heads, C //
+    #                            self.num_heads)).permute((2, 0, 3, 1, 4))
+    qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
     # 分割 query key value
-    q, k, v = qkv[0], qkv[1], qkv[2]
+    q, k, v = qkv.unbind(0)
     # Scaled Dot-Product Attention
     # Matmul + Scale
-    attn = (q @ k.transpose(-2, -1)) * self.scale
+    attn = torch.einsum("bhid,bhjd->bhij", q, k) * self.scale
     # SoftMax
     attn = F.softmax(attn, dim=-1)
     attn = self.attn_drop(attn)
     # Matmul
-    x = (attn @ v).transpose(1, 2).reshape(batch_size, N, C)
+    x = torch.einsum("bhij,bhjd->bhid", attn, v)
+    x = x.transpose(1, 2).reshape(B, N, C)
     # 线性变换
     x = self.proj(x)
     x = self.proj_drop(x)
@@ -101,26 +113,38 @@ class Mlp(nn.Module):
                hidden_features=None,
                out_features=None,
                act_layer=nn.GELU,
-               drop=0.):
+               drop=0.1,
+               use_ln=False
+               ):
     super().__init__()
     out_features = out_features or in_features
-    hidden_features = hidden_features or in_features
+    hidden_features = hidden_features or int(in_features * 4)
     self.fc1 = nn.Linear(in_features, hidden_features)
     self.act = act_layer()
+    self.drop1 = nn.Dropout(drop)
     self.fc2 = nn.Linear(hidden_features, out_features)
-    self.drop = nn.Dropout(drop)
+    self.drop2 = nn.Dropout(drop)
+    # 可选层归一化
+    self.norm = nn.LayerNorm(hidden_features) if use_ln else nn.Identity()
+    # 初始化
+    trunc_normal_(self.fc1.weight, std=0.02)
+    nn.init.constant_(self.fc1.bias, 0)
+    trunc_normal_(self.fc2.weight, std=0.02)
+    nn.init.constant_(self.fc2.bias, 0)
 
   def forward(self, x):
     # 输入层：线性变换
     x = self.fc1(x)
     # 应用激活函数
     x = self.act(x)
+    # 可选层归一化
+    x = self.norm(x)
     # Dropout
-    x = self.drop(x)
+    x = self.drop1(x)
     # 输出层：线性变换
     x = self.fc2(x)
     # Dropout
-    x = self.drop(x)
+    x = self.drop2(x)
     return x
 
 
@@ -158,10 +182,10 @@ class Block(nn.Module):
                attn_drop=0.,
                drop_path=0.,
                act_layer=nn.GELU,
-               norm_layer="nn.LayerNorm",
-               epsilon=1e-5):
+               norm_layer=partial(nn.LayerNorm, eps=1e-5),
+               ):
     super().__init__()
-    self.norm1 = eval(norm_layer)(dim, eps=epsilon)
+    self.norm1 = norm_layer(dim)
     # Multi-head self-attention
     self.attn = Attention(
       dim,
@@ -173,9 +197,15 @@ class Block(nn.Module):
     )
     # DropPath
     self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-    self.norm2 = eval(norm_layer)(dim, eps=epsilon)
+    self.norm2 = norm_layer(dim)
     mlp_hidden_dim = int(dim * mlp_ratio)
-    self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+    self.mlp = Mlp(
+      in_features=dim,
+      hidden_features=mlp_hidden_dim,
+      act_layer=act_layer,
+      drop=drop,
+      use_ln=True
+    )
 
   def forward(self, x):
     # Multi-head Self-attent , add, LayerNorm
@@ -189,40 +219,37 @@ class VisionTransformer(nn.Module):
   def __init__(
     self,
     img_size=128,
-    patch_size = 16,
-    in_chans = 3,
-    embed_dim = 512,
-    depth = 6,
-    num_heads = 12,
-    mlp_ratio = 4,
-    qkv_bias = False,
-    qk_scale = None,
-    drop_rate = 0.,
+    patch_size=16,
+    in_chans=3,
+    embed_dim=512,
+    depth=6,
+    num_heads=8,
+    mlp_ratio=4,
+    qkv_bias=True,
+    qk_scale=None,
+    drop_rate=0.,
     attn_drop_rate=0.,
-    drop_path_rate = 0.,
+    drop_path_rate=0.,
     norm_layer=partial(nn.LayerNorm, eps=1e-5),
     **kwargs
   ):
     super().__init__()
-    # self.class_dim = class_dim
     self.num_features = self.embed_dim = embed_dim
     # 图片分块和降维，块大小为patch_size，最终块向量维度为768
     self.patch_embed = PatchEmbed(
-      img_size = img_size,
-      patch_size = patch_size,
-      in_chans = in_chans,
-      embed_dim = embed_dim,
+      img_size=img_size,
+      patch_size=patch_size,
+      in_chans=in_chans,
+      embed_dim=embed_dim,
     )
     # 分块数量
     num_patches = self.patch_embed.num_patches
     # 可学习的位置编码
     self.pos_embed = nn.Parameter(
-      torch.zeros(1, num_patches+1, embed_dim)
+      torch.zeros(1, num_patches + 1, embed_dim)
     )
-    # self.add_parameter("pos_embed", self.pos_embed)
     # 回归专用token
     self.reg_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-    # self.add_parameter("cls_token", self.cls_token)
     self.pos_drop = nn.Dropout(p=drop_rate)
 
     dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]
@@ -232,23 +259,23 @@ class VisionTransformer(nn.Module):
       Block(
         dim=embed_dim,
         num_heads=num_heads,
-        mlp_ratio = mlp_ratio,
+        mlp_ratio=mlp_ratio,
         qkv_bias=qkv_bias,
-        qk_scale = qk_scale,
+        qk_scale=qk_scale,
         drop=drop_rate,
         attn_drop=attn_drop_rate,
         drop_path=dpr[i],
         norm_layer=norm_layer,
       ) for i in range(depth)
     ])
-    self.norm = norm_layer
+    self.norm = norm_layer(embed_dim)
     self.reg_head = nn.Sequential(
-      nn.Linear(embed_dim, embed_dim//2),
+      nn.Linear(embed_dim, embed_dim // 2),
       nn.GELU(),
-      nn.Linear(embed_dim//2, 1)
+      nn.Linear(embed_dim // 2, 1)
     )
     trunc_normal_(self.pos_embed, std=0.02)
-    trunc_normal_(self.cls_token, std=0.02)
+    trunc_normal_(self.reg_token, std=0.02)
     self.apply(self._init_weights)
 
   def _init_weights(self, m):
@@ -264,8 +291,8 @@ class VisionTransformer(nn.Module):
     B = x.shape[0]
     # 将图片分块，并调整每个快向量的维度
     x = self.patch_embed(x)
-    # 添加回归token
-    reg_tokens = self.reg_token.expend(B, -1, -1)
+    # 将class token与前面的分块进行拼接
+    reg_tokens = self.reg_token.expand(B, -1, -1)
     x = torch.cat((reg_tokens, x), dim=1)
     # 将编码向量中加入位置编码
     x = x + self.pos_embed
@@ -276,26 +303,16 @@ class VisionTransformer(nn.Module):
     # LayerNorm
     x = self.norm(x)
     # 提取分类tokens的输出
-    return x[:,0]
+    return x[:, 0]
 
   def forward(self, x):
     # 获取图像特征
     x = self.forward_features(x)
     # 图像分类
-    x = self.head(x)
+    x = self.reg_head(x)
     x = x.squeeze(-1)
     return x
 
-
-class ViTRegressor(nn.Module):
-  def __init__(self):
-    super().__init__()
-    self.vit = timm.create_model("vit_base_patch16_224", pretrained=True, num_classes=0)
-    self.regressor = nn.Linear(self.vit.embed_dim, 1)
-
-  def forward(self, x):
-    x = self.vit(x)
-    return self.regressor(x).squeeze()
 
 # def test_multi_device():
 #   devices = ["cpu"] + (["cuda"] if torch.cuda.is_available() else [])
