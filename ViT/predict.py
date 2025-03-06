@@ -60,26 +60,25 @@ def predict_single_image(model, image_path, transform, device):
 if __name__ == "__main__":
   config = {
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "model_path": "./best_model.pth",
+    "model_path": "../test/best_vit_model2.pth",
     "image_size": 128
   }
   test_transform = transforms.Compose([
     transforms.Resize((config["image_size"], config["image_size"])),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                         std=[0.229, 0.224, 0.225])
+    # transforms.Normalize(mean=[0.485, 0.456, 0.406],
+    #                      std=[0.229, 0.224, 0.225])
+    transforms.Normalize(mean=0.45, std=0.2)
   ])
   model = vit.VisionTransformer(
     img_size=config["image_size"],
     patch_size=16,
-    in_chans=3,
-    class_dim=1,
+    in_chans=1,
     embed_dim=768,
     depth=12,
     num_heads=12,
     mlp_ratio=4,
     qkv_bias=True,
-    norm_layer="nn.LayerNorm"
   ).to(config["device"])
   model.load_state_dict(torch.load(config["model_path"]))
 
@@ -87,7 +86,7 @@ if __name__ == "__main__":
   print("Evaluating on test set:")
 
   evaluate_model(model, test_loader, config["device"])
-  sample_image_path = r"F:\New\Coding\GAF_VIT\images\XQ-15-images\XQ-15-789.png"
+  sample_image_path = r"F:\New\Coding\GAF_VIT\images3\XQ-15-images\XQ-15-789.png"
   prediction = predict_single_image(
     model=model,
     image_path=sample_image_path,

@@ -472,7 +472,7 @@ class BatteryDataset(Dataset):
   def __getitem__(self, index):
     img_path = self.path_data[index]
     label = self.labels[index]
-    image = Image.open(img_path).convert("RGB")
+    image = Image.open(img_path).convert("L")
     label = torch.tensor(label, dtype=torch.float)
 
     if self.transform:
@@ -484,11 +484,12 @@ class BatteryDataset(Dataset):
 def get_train_transform():
   return transforms.Compose([
     transforms.Resize((128, 128)),
-    transforms.RandomHorizontalFlip(),  # 示例增强
-    transforms.RandomRotation(10),
+    # transforms.RandomHorizontalFlip(),  # 示例增强
+    # transforms.RandomRotation(10),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet标准参数
-                         std=[0.229, 0.224, 0.225])
+    # transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet标准参数
+    #                      std=[0.229, 0.224, 0.225])
+    transforms.Normalize(mean=0.45, std=0.2)
   ])
 
 
@@ -496,8 +497,9 @@ def get_val_transform():
   return transforms.Compose([
     transforms.Resize((128, 128)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                         std=[0.229, 0.224, 0.225])
+    # transforms.Normalize(mean=[0.485, 0.456, 0.406],
+    #                      std=[0.229, 0.224, 0.225])
+    transforms.Normalize(mean=0.45, std=0.2)
   ])
 
 
@@ -574,7 +576,7 @@ config = {
   "batch_size": 32,
   "num_workers": 8,
   "weight_decay": 0.01,
-  "save_path": "./best_vit_model.pth"
+  "save_path": "./best_vit_model2.pth"
 }
 
 train_loader, val_loader, test_loader = create_loaders()
@@ -584,11 +586,11 @@ def train_vit():
   model = VisionTransformer(
     img_size=128,
     patch_size=16,
-    in_chans=3,
+    in_chans=1,
     embed_dim=768,
-    depth=8,
+    depth=12,
     num_heads=12,
-    mlp_ratio=2,
+    mlp_ratio=4,
     qkv_bias=True,
     drop_rate=0.2,
     attn_drop_rate=0.2,
@@ -852,25 +854,25 @@ if __name__ == "__main__":
   train_vit()
   #
   # # train_cnn()
-  print("this the cnn model evaluate result: ")
-  cnn_outputs, cnn_labels, cnn_rmse, cnn_r2 = evaluate_model(
-    CNNRegressor(),
-    test_loader,
-    "./best_cnn_model.pth"
-  )
-  plot_results(cnn_outputs, cnn_labels)
-
-  print("this the vit model evaluate result: ")
+  # print("this the cnn model evaluate result: ")
+  # cnn_outputs, cnn_labels, cnn_rmse, cnn_r2 = evaluate_model(
+  #   CNNRegressor(),
+  #   test_loader,
+  #   "./best_cnn_model.pth"
+  # )
+  # plot_results(cnn_outputs, cnn_labels)
+  #
+  # print("this the vit model evaluate result: ")
   vit_outputs, vit_labels, vit_rmse, vit_r2 = evaluate_model(
     VisionTransformer(img_size=128,
     patch_size=16,
-    in_chans=3,
+    in_chans=1,
     embed_dim=768,
-    depth=8,
+    depth=12,
     num_heads=12,
-    mlp_ratio=2,
+    mlp_ratio=4,
     qkv_bias=True,),
     test_loader,
-    "./best_vit_model.pth"
+    "./best_vit_model2.pth"
   )
   plot_results(vit_outputs, vit_labels)
