@@ -1,6 +1,24 @@
 import numpy as np
+import pandas as pd
 
-import data.get_data as gd
+# dfs = {}
+
+
+def read_file(file_path: str):
+  df = []
+  if file_path.split('.')[-1] == 'xlsx':
+    df = pd.read_excel(file_path)
+  else:
+    df = pd.read_csv(file_path)
+  return df
+
+
+def get_df_data(file_path: str, file_names: []):
+  dfs = {}
+  for i in file_names:
+    dfs[i.split('.')[0][:5]] = read_file(file_path + '\\' + i)
+  return dfs
+
 
 df_keys = [
   "XQ-11",
@@ -11,11 +29,22 @@ df_keys = [
   "XQ-17",
   "XQ-18",
 ]
-dfs = gd.get_df_data(gd.data_files_path)
+files_name = [
+  "XQ-11-25-1C-pre.xlsx",
+  "XQ-12-25-1C-pre.xlsx",
+  "XQ-14-25-1C-pre.xlsx",
+  "XQ-15-25-1C-pre.xlsx",
+  "XQ-16-25-1C-pre.xlsx",
+  "XQ-17-25-1C-pre.xlsx",
+  "XQ-18-25-1C-pre.xlsx"
+]
+
+data_files_path = r"F:\New\Coding\Datasets\data"
+dfs = get_df_data(data_files_path, files_name)
 
 
-def read_dfs_by_cycle_toCap(df_key, dfs: dict):
-  df = dfs[df_key]
+def read_dfs_by_cycle_toCap(df_key, dfs_data: dict):
+  df = dfs_data[df_key]
   cycles = list(set(df["循环"]))
   Caps = []
   for c in cycles:
@@ -28,8 +57,8 @@ def read_dfs_by_cycle_toCap(df_key, dfs: dict):
   return np.array(Caps, dtype=object)
 
 
-def read_dfs_by_cycle_toTime(df_key, dfs: dict):
-  df = dfs[df_key]
+def read_dfs_by_cycle_toTime(df_key, dfs_data: dict):
+  df = dfs_data[df_key]
   cycles = list(set(df["循环"]))
   times = []
   for c in cycles:
@@ -41,14 +70,8 @@ def read_dfs_by_cycle_toTime(df_key, dfs: dict):
   return np.array(times, dtype=object)
 
 
-def normalize_data(df, col: str):
-  min_d = df[str].min()
-  max_d = df[str].max()
-  return (df[str] - min_d) / (max_d - min_d)
-
-
-def read_dfs_by_cycle_toSOH(df_key, dfs: dict):
-  df = dfs[df_key]
+def read_dfs_by_cycle_toSOH(df_key, dfs_data: dict):
+  df = dfs_data[df_key]
   cycles = list(set(df["循环"]))
   SOHs_label = {}
   i = 0
@@ -61,6 +84,34 @@ def read_dfs_by_cycle_toSOH(df_key, dfs: dict):
     SOHs_label[i] = sohs_avg
     i += 1
   return SOHs_label
+
+
+def read_dfs_by_cycle_toVol(df_key, dfs_data: dict):
+  df = dfs_data[df_key]
+  cycles = list(set(df["循环"]))
+  Vols = []
+  for c in cycles:
+    if c in [50, 150, 250, 350, 450, 550, 650, 750, 850, 950]:
+      continue
+    df_lim = df[df["循环"] == c]
+    time = np.array(list(df_lim["电压(V)"])).reshape(-1)
+    Vols.append(time)
+  return np.array(Vols, dtype=object)
+
+
+def get_soh_labels(keys: []):
+  SOH_Labels = {}
+  for df_key in keys:
+    soh_label = read_dfs_by_cycle_toSOH(df_key, dfs)
+    SOH_Labels[df_key] = soh_label
+
+  return SOH_Labels
+
+
+if __name__ == "__main__":
+  Vols_data = read_dfs_by_cycle_toVol("XQ-11", dfs)
+  print("the Vols: ", Vols_data)
+  print("the dfs: ", dfs)
 
 # Caps = read_dfs_by_cycle_toCap("XQ-11", dfs)
 # # Times = read_dfs_by_cycle_toTime("XQ-11", dfs)

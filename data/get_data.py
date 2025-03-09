@@ -1,5 +1,6 @@
 import pandas as pd
 
+dfs = {}
 data_files_path = r"F:\New\Coding\Datasets\data"
 files_name = [
   "XQ-11-25-1C-pre.xlsx",
@@ -19,7 +20,7 @@ def read_file(file_path: str):
   return df
 
 def get_df_data(file_path: str):
-  dfs = {}
+  global dfs
   for i in files_name:
     dfs[i.split('.')[0][:5]] = read_file(file_path+'\\'+i)
   return dfs

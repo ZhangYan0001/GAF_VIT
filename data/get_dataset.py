@@ -95,9 +95,6 @@ class BatteryDataset(Dataset):
 
   def __getitem__(self, index):
     img_path = self.path_data[index]
-    # img_path_key = "XQ-" + image_path.split("\\")[-1].split("-")[1]
-    # img_path_index = image_path.split("\\")[-1].split("-")[-1].split(".")[0]
-    # label = self.labels[img_path_key][int(img_path_index)]
     label = self.labels[index]
     image = Image.open(img_path).convert("L")
     label = torch.tensor(label, dtype=torch.float)

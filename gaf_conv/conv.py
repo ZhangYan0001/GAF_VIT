@@ -4,7 +4,6 @@ from sklearn.preprocessing import MinMaxScaler
 from scipy.interpolate import interp1d
 from pyts.image import GramianAngularField
 import matplotlib.pyplot as plt
-import data.get_data as gd
 import data.get_feature as gf
 
 def resample(series, new_length):
@@ -13,14 +12,6 @@ def resample(series, new_length):
   f = interp1d(x_original, series, kind='linear')
   return f(x_new)
 
-# 将每个充放电周期的时间序列归一化到[-1,1]区间，以满足GAF对输入的要求
-# scaler = MinMaxScaler(feature_range=(-1,1))
-# X_normalized = scaler.fit_transform()   # 原始数据
-
-def gaf_show(norma_value,image_size):
-  gaf = GramianAngularField(method="summation", image_size=image_size)
-  gaf_image = gaf.fit_transform(norma_value.reshape(-1,1))
-  return gaf_image
 
 def conv_gaf_image():
   dfs = gf.dfs
