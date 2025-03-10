@@ -35,14 +35,6 @@ def conv_gaf_image():
 
       caps_resampled = np.array(resample(caps,128))
 
-      # if len(caps) < 128:
-      #   caps_last = caps[-1]
-      #   for _ in range(128-len(caps)):
-      #     caps = list(caps)
-      #     caps.append(caps_last)
-      #
-      #   caps = np.array(caps)
-
       print("this is len: ",len(caps_resampled))
 
       scaler = MinMaxScaler(feature_range=(-1,1))

@@ -17,7 +17,7 @@ def train_cnn():
   }
   model = cnn.CNNRegressor(
     input_size=128,
-    in_channels=3,
+    in_channels=1,
     dropout_rate=0.3
   ).to(config_cnn["device"])
   criterion = nn.MSELoss()
@@ -89,3 +89,6 @@ def train_cnn():
       print(f"Saved the model with MAE: {best_mae:.4f}")
 
   print("Training complete.")
+
+if __name__ == "__main__":
+  train_cnn()

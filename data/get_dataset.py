@@ -7,9 +7,9 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 
 from torch.utils.data import DataLoader
-import data.get_soh as gs
+import data.get_feature as gf
 
-image_path = r"F:\New\Coding\GAF_VIT\images3"
+image_path = r"D:\1New\Coding\GAF_VIT\images3"
 image_keys = [
   "XQ-11",
   "XQ-12",
@@ -31,9 +31,6 @@ test_image_keys = [
 ]
 val_image_keys = ["XQ-18"]
 
-# 定义数据增强
-
-
 def get_images_path(image_dir: str, image_keys: []):
   if not os.path.exists(image_dir):
     print("the image_dir is not exist,please input a new path")
@@ -45,11 +42,6 @@ def get_images_path(image_dir: str, image_keys: []):
 
   return images
 
-# def get_images_path_data(image_dir:str, image_keys:[]):
-#   images = []
-#   for image_key in image_keys:
-#     images.append(get_images_path(image_dir, image_key))
-#   return images
 
 def get_labels(image_paths: [], SOH_Labels: dict):
   labels = []
@@ -63,7 +55,6 @@ def get_labels(image_paths: [], SOH_Labels: dict):
 
 # paths = get_images_path(image_path, image_keys)
 # labels = get_labels(paths, gs.get_soh_labels(image_keys))
-
 
 # print(labels)
 # key = "XQ-" + paths[0].split("\\")[-1].split("-")[1]
@@ -103,6 +94,7 @@ class BatteryDataset(Dataset):
       image = self.transform(image)
 
     return image, label
+
 def get_train_transform():
   return transforms.Compose([
     transforms.Resize((128, 128)),
@@ -129,7 +121,7 @@ def get_val_transform():
 def create_loaders(batch_size=32):
   # 获取所有路径和标签
   all_paths = get_images_path(image_path, image_keys)
-  all_labels = get_labels(all_paths, gs.get_soh_labels(image_keys))  # 假设gs已定义
+  all_labels = get_labels(all_paths, gf.get_soh_labels(image_keys))  # 假设gs已定义
 
   # 按你的划分策略分离数据
   train_paths = get_images_path(image_path, train_image_keys)

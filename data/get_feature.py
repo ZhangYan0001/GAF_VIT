@@ -1,11 +1,18 @@
+import os.path
+import json
 import numpy as np
 import pandas as pd
+import scipy as sp
+from data.xjbattery import Battery
 
 # dfs = {}
 
+"""
+  the XQ-_-25-1C 数据提取，包括时间，电压，容量，的数据按循环读取
+"""
+
 
 def read_file(file_path: str):
-  df = []
   if file_path.split('.')[-1] == 'xlsx':
     df = pd.read_excel(file_path)
   else:
@@ -39,7 +46,7 @@ files_name = [
   "XQ-18-25-1C-pre.xlsx"
 ]
 
-data_files_path = r"F:\New\Coding\Datasets\data"
+data_files_path = r"D:\1New\Coding\Datasets\data"
 dfs = get_df_data(data_files_path, files_name)
 
 
@@ -53,7 +60,7 @@ def read_dfs_by_cycle_toCap(df_key, dfs_data: dict):
     df_lim = df[df["循环"] == c]
     Cap = np.array(list(df_lim["容量(Ah)"])).reshape(-1)
     Caps.append(Cap)
-
+  
   return np.array(Caps, dtype=object)
 
 
@@ -104,14 +111,65 @@ def get_soh_labels(keys: []):
   for df_key in keys:
     soh_label = read_dfs_by_cycle_toSOH(df_key, dfs)
     SOH_Labels[df_key] = soh_label
-
+  
   return SOH_Labels
 
 
+"""
+  XJTU 电池数据读取
+"""
+
+xj_data_files_path = r"D:\1New\Coding\Datasets\XJTU\Battery Dataset"
+batches_arr = ["Batch-" + str(i) for i in range(1, 7)]
+
+
+def read_xj_data_files(path: str, batches: list[str]):
+  files_count = {}
+  for batch in batches:
+    current_path = os.path.join(path, batch)
+    if not os.path.isdir(current_path):
+      print(f"error: {current_path} is not exist.")
+      break
+    
+    filenames = os.listdir(current_path)
+    files_count[batch] = [os.path.join(current_path, filename) for filename in filenames]
+  
+  return files_count
+  
+
+
+def get_xj_data_file(files_path: {str, list[str]}, batch: str):
+  paths = files_path[batch]
+  mat_datas = {}
+  for path in paths:
+    if os.path.isfile(path):
+      idx = path.split('\\')[-1].split('.')[0].split('-')[-1]
+      mat_datas[idx] = Battery(path)
+      
+  return mat_datas
+
+
+"""
+  测试代码
+"""
+
 if __name__ == "__main__":
-  Vols_data = read_dfs_by_cycle_toVol("XQ-11", dfs)
-  print("the Vols: ", Vols_data)
-  print("the dfs: ", dfs)
+  # print(
+  #   "this is files path ",
+  #   read_xj_data_files(xj_data_files_path, batches_arr)
+  # )
+  datas = get_xj_data_file(read_xj_data_files(xj_data_files_path, batches_arr), "Batch-1")
+  print(
+    "this is data file",
+    datas
+  )
+  # get_xj_data_file(
+  #   read_xj_data_files(xj_data_files_path,batches_arr),
+  #   "Batch-1"
+  # )
+#   Vols_data = read_dfs_by_cycle_toVol("XQ-11", dfs)
+#   print("the Vols: ", Vols_data)
+#   print("the dfs: ", dfs)
 
 # Caps = read_dfs_by_cycle_toCap("XQ-11", dfs)
 # # Times = read_dfs_by_cycle_toTime("XQ-11", dfs)
