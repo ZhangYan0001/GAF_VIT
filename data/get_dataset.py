@@ -8,6 +8,7 @@ from torchvision import transforms
 
 from torch.utils.data import DataLoader
 import data.get_feature as gf
+from data.xjbattery import Battery
 
 image_path = r"D:\1New\Coding\GAF_VIT\images3"
 image_keys = [
@@ -116,7 +117,9 @@ def get_val_transform():
     transforms.Normalize(mean=0.45, std=0.2)
   ])
 
-
+"""
+   self data loader creat
+"""
 # 创建完整数据集
 def create_loaders(batch_size=32):
   # 获取所有路径和标签
