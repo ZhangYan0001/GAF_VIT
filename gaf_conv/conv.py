@@ -59,7 +59,53 @@ def conv_gaf_image():
       plt.savefig(output_path+f"{df_key}"+f"-{i}.png", bbox_inches ="tight", pad_inches=0)
 
 
+def xj_conv_gaf_image():
+  all_battery_data = gf.batch1_all_battery_data
+  for battery_idx, battery_data in all_battery_data.items():
+    output_path = r"D:\1New\Coding\GAF_VIT\xj_images" +f"\\{battery_idx}"
+    if not os.path.exists(output_path):
+      try:
+        os.makedirs(output_path, exist_ok=True)
+        print(f"创建图像输出目录{output_path} 成功")
+      except OSError:
+        print(f"创建图像输出目录{output_path} 失败:{OSError}")
+        
+    charge_data = gf.get_xj_battery_data(battery_data,1)
+    
+    for cycle_data in charge_data:
+      caps =  cycle_data["capacity"]
+      vols = charge_data["voltage"]
+      curs = charge_data["current"]
+      temps= charge_data["temperature"]
+      i = cycle_data["cycle"]
+      # 去除第一个测试cycle
+      if i== 1:
+        continue
+      # print(f"{i},{caps}")
+      
+      scaler = MinMaxScaler(feature_range=(-1,1))
+      caps_normalized = scaler.fit_transform(caps.reshape(-1, 1)).flatten()
+      print("this caps normalized: ", caps_normalized)
+
+      image_size = caps.size
+      gaf = GramianAngularField(
+        image_size= image_size,
+        method = "summation",
+        sample_range=(-1,1)
+      )
+
+      gaf_images = gaf.fit_transform(caps_normalized.reshape(1,-1))
+
+      plt.figure(figsize=(5,5))
+      plt.imshow(gaf_images[0], cmap="viridis", origin="lower")
+      plt.xticks([])
+      plt.yticks([])
+      plt.axis("off")
+      plt.tight_layout()
+      plt.savefig(output_path+f"\\{battery_idx}"+f"-{i}.png", bbox_inches ="tight", pad_inches=0)
+
+
 if __name__ == '__main__':
-    # print_hi('PyCharm')
-    conv_gaf_image()
+    # conv_gaf_image()
+    xj_conv_gaf_image()
 

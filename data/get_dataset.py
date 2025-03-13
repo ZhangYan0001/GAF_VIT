@@ -11,46 +11,62 @@ import data.get_feature as gf
 from data.xjbattery import Battery
 
 image_path = r"D:\1New\Coding\GAF_VIT\images3"
-image_keys = [
-  "XQ-11",
-  "XQ-12",
-  "XQ-14",
-  "XQ-15",
-  "XQ-16",
-  "XQ-17",
-  "XQ-18"
-]
-train_image_keys = [
-  "XQ-11",
-  "XQ-12",
-  "XQ-14",
-  "XQ-15"
-]
-test_image_keys = [
-  "XQ-16",
-  "XQ-17"
-]
+xj_image_path = r"D:\1New\Coding\GAF_VIT\xj_images"
+image_keys = ["XQ-11", "XQ-12", "XQ-14", "XQ-15", "XQ-16", "XQ-17", "XQ-18"]
+train_image_keys = ["XQ-11", "XQ-12", "XQ-14", "XQ-15"]
+test_image_keys = ["XQ-16", "XQ-17"]
 val_image_keys = ["XQ-18"]
+xj_image_keys = [
+  "2C_battery-1",
+  "2C_battery-2",
+  "2C_battery-3",
+  "2C_battery-4",
+  "2C_battery-5",
+  "2C_battery-6",
+  "2C_battery-7",
+  "2C_battery-8",
+]
+xj_train_image_keys = ["2C_battery-1", "2C_battery-2", "2C_battery-3", "2C_battery-4"]
+xj_test_image_keys = [
+  "2C_battery-5",
+  "2C_battery-6",
+  "2C_battery-7",
+]
+xj_val_image_keys = ["2C_battery-8"]
 
-def get_images_path(image_dir: str, image_keys: []):
+
+def get_images_path(image_dir: str, image_keys: [], image_flag):
   if not os.path.exists(image_dir):
     print("the image_dir is not exist,please input a new path")
   images = []
-  for image_key in image_keys:
-    path = pathlib.Path(os.path.join(image_path, image_key + "-images"))
-    for P in path.iterdir():
-      images.append(P.__str__())
+  if image_flag == "SE":
+    # todo 添加判断xj文件目录
+    for image_key in image_keys:
+      path = pathlib.Path(os.path.join(image_path, image_key + "-images"))
+      for P in path.iterdir():
+        images.append(P.__str__())
+  elif image_flag == "XJ":
+    for image_key in image_keys:
+      path = pathlib.Path(os.path.join(image_path, image_key))
+      for P in path.iterdir():
+        images.append(P.__str__())
 
   return images
 
 
-def get_labels(image_paths: [], SOH_Labels: dict):
+# todo 添加如何获取xj标签
+def get_labels(image_paths: [], SOH_Labels: dict, label_flag: str):
   labels = []
-  for path in image_paths:
-    key = "XQ-" + path.split("\\")[-1].split("-")[1]
-    idx = path.split("\\")[-1].split("-")[-1].split(".")[0]
-    label = SOH_Labels[key][int(idx)]
-    labels.append(label)
+  if label_flag == "SE":
+    for path in image_paths:
+      key = "XQ-" + path.split("\\")[-1].split("-")[1]
+      idx = path.split("\\")[-1].split("-")[-1].split(".")[0]
+      label = SOH_Labels[key][int(idx)]
+      labels.append(label)
+  elif label_flag == "XJ":
+    for path in image_paths:
+      # key =
+      print("")
   return labels
 
 
@@ -66,15 +82,19 @@ def get_labels(image_paths: [], SOH_Labels: dict):
 
 
 def get_transform():
-  transform = transforms.Compose([
-    transforms.Resize((128, 128)),
-    transforms.ToTensor(),
-  ])
+  transform = transforms.Compose(
+    [
+      transforms.Resize((128, 128)),
+      transforms.ToTensor(),
+    ]
+  )
   return transform
 
 
 class BatteryDataset(Dataset):
-  def __init__(self, img_dir=image_path, img_keys=image_keys,labels = [], transform=None):
+  def __init__(
+    self, img_dir=image_path, img_keys=image_keys, labels=[], transform=None
+  ):
     self.img_dir = img_dir
     self.img_keys = img_keys
     self.transform = transform
@@ -96,35 +116,45 @@ class BatteryDataset(Dataset):
 
     return image, label
 
+
 def get_train_transform():
-  return transforms.Compose([
-    transforms.Resize((128, 128)),
-    transforms.RandomHorizontalFlip(),  # 示例增强
-    transforms.RandomRotation(10),
-    transforms.ToTensor(),
-    # transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet标准参数
-    #                      std=[0.229, 0.224, 0.225])
-    transforms.Normalize(mean= 0.45, std=0.2)
-  ])
+  return transforms.Compose(
+    [
+      transforms.Resize((128, 128)),
+      transforms.RandomHorizontalFlip(),  # 示例增强
+      transforms.RandomRotation(10),
+      transforms.ToTensor(),
+      # transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet标准参数
+      #                      std=[0.229, 0.224, 0.225])
+      transforms.Normalize(mean=0.45, std=0.2),
+    ]
+  )
 
 
 def get_val_transform():
-  return transforms.Compose([
-    transforms.Resize((128, 128)),
-    transforms.ToTensor(),
-    # transforms.Normalize(mean=[0.485, 0.456, 0.406],
-    #                      std=[0.229, 0.224, 0.225])
-    transforms.Normalize(mean=0.45, std=0.2)
-  ])
+  return transforms.Compose(
+    [
+      transforms.Resize((128, 128)),
+      transforms.ToTensor(),
+      # transforms.Normalize(mean=[0.485, 0.456, 0.406],
+      #                      std=[0.229, 0.224, 0.225])
+      transforms.Normalize(mean=0.45, std=0.2),
+    ]
+  )
+
 
 """
    self data loader creat
 """
+
+
 # 创建完整数据集
-def create_loaders(batch_size=32):
+def create_loaders(path, keys, batch_size=32, loader_flag="SE"):
   # 获取所有路径和标签
-  all_paths = get_images_path(image_path, image_keys)
-  all_labels = get_labels(all_paths, gf.get_soh_labels(image_keys))  # 假设gs已定义
+  all_paths = get_images_path(path, keys, image_flag=loader_flag)
+  all_labels = get_labels(
+    all_paths, gf.get_soh_labels(image_keys, loader_flag), label_flag=loader_flag
+  )  # 假设gs已定义
 
   # 按你的划分策略分离数据
   train_paths = get_images_path(image_path, train_image_keys)
@@ -142,44 +172,28 @@ def create_loaders(batch_size=32):
 
   # 创建数据集实例
   train_dataset = BatteryDataset(
-    img_keys=train_image_keys,
-    labels=train_labels,
-    transform=get_train_transform()
+    img_keys=train_image_keys, labels=train_labels, transform=get_train_transform()
   )
 
   val_dataset = BatteryDataset(
-    img_keys=val_image_keys,
-    labels=val_labels,
-    transform=get_val_transform()
+    img_keys=val_image_keys, labels=val_labels, transform=get_val_transform()
   )
 
   test_dataset = BatteryDataset(
-    img_keys=test_image_keys,
-    labels=test_labels,
-    transform=get_val_transform()
+    img_keys=test_image_keys, labels=test_labels, transform=get_val_transform()
   )
 
   # 创建DataLoader
   train_loader = DataLoader(
-    train_dataset,
-    batch_size=batch_size,
-    shuffle=True,
-    num_workers=4,
-    pin_memory=True
+    train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True
   )
 
   val_loader = DataLoader(
-    val_dataset,
-    batch_size=batch_size,
-    shuffle=False,
-    num_workers=4
+    val_dataset, batch_size=batch_size, shuffle=False, num_workers=4
   )
 
   test_loader = DataLoader(
-    test_dataset,
-    batch_size=batch_size,
-    shuffle=False,
-    num_workers=4
+    test_dataset, batch_size=batch_size, shuffle=False, num_workers=4
   )
 
   return train_loader, val_loader, test_loader

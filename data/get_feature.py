@@ -108,12 +108,22 @@ def read_dfs_by_cycle_toVol(df_key, dfs_data: dict):
   return np.array(Vols, dtype=object)
 
 
-def get_soh_labels(keys: []):
+def get_soh_labels(keys: [], label_flag:str):
   SOH_Labels = {}
-  for df_key in keys:
-    soh_label = read_dfs_by_cycle_toSOH(df_key, dfs)
-    SOH_Labels[df_key] = soh_label
-
+  if label_flag == "SE":
+    for df_key in keys:
+      soh_label = read_dfs_by_cycle_toSOH(df_key, dfs)
+      SOH_Labels[df_key] = soh_label
+  
+  elif label_flag == "XJ":
+    # todo
+    # get the xj_soh_labels
+    for data_key in keys:
+      soh_label = cal_xj_battery_soh_data(batch1_all_battery_data[data_key])
+      SOH_Labels[data_key] = soh_label
+  else:
+    print("当前数据集flag不存在，请重新输入")
+    
   return SOH_Labels
 
 
@@ -146,55 +156,46 @@ def get_xj_data_file(files_path: {str, list[str]}, batch: str):
   mat_datas = {}
   for path in paths:
     if os.path.isfile(path):
-      idx = path.split("\\")[-1].split(".")[0].split("-")[-1]
-      mat_datas[idx] = Battery(path)
+      # idx = path.split("\\")[-1].split(".")[0].split("-")[-1]
+      battery = Battery(path)
+      idx = battery.battery_name.split('\\')[-1]
+      mat_datas[idx] = battery
   print(f"the {batch} and have {len(paths)} battery")
   return mat_datas
 
 
-def get_xj_battery_vol_data(battery: Battery):
-  name = battery.battery_name
+
+def get_xj_battery_data(battery: Battery, stage:int):
+  # name = battery.battery_name
   cycle_life = battery.cycle_life
-  voltages = []
-  for i in range(cycle_life):
-    voltage = battery.get_partial_value(
-      i,
-      2,
-      1,
-    )
-    print(f"the every cycle voltage len:{len(voltage)}")
-    voltages.append(voltage)
-
-  print(f"{name} voltage data and the len is {len(voltages)}")
-  return voltages
-
-
-def get_xj_battery_charge_data(battery: Battery):
-  name = battery.battery_name
-  cycle_life = battery.cycle_life
-  charge_data = []
-  for i in range(cycle_life):
-    cap = battery.get_capacity()[i]
-    vol = battery.get_partial_value(i, 2, 1)
-    cur = battery.get_partial_value(i, 3, 1)
-    temp = battery.get_partial_value(i, 6, 1)
+  data_ = []
+  for i in range(1, cycle_life+1):
+    cap = battery.get_partial_value(i, 4, stage)
+    vol = battery.get_partial_value(i, 2, stage)
+    cur = battery.get_partial_value(i, 3, stage)
+    temp = battery.get_partial_value(i, 6, stage)
     # print(f"the every cycle cap len:{len(cap)}")
     cycle_data = {
-      "cycle": i+1,
+      "cycle": i,
       "capacity":cap,
       "voltage":vol,
       "current":cur,
       "temperature":temp
     }
-    charge_data.append(cycle_data)
+    data_.append(cycle_data)
 
-  return charge_data
+  return data_
 
-# def cal_xj_battery_charge_soh_data(battery:Battery):
-#   init_cap = battery.get_partial_value(1,4,1)
-#   init_cap = max(init_cap)
-#   sohs = []
-#   for i in range(1, battery.cycle_life):
+def cal_xj_battery_soh_data(battery:Battery):
+  caps = battery.get_capacity()
+  max_cap = max(caps)
+  print("the max cap is :",max_cap)
+  sohs = []
+  for cap in caps:
+    soh = cap / max_cap
+    soh = f"{soh:.3f}"
+    sohs.append(soh)
+  return sohs
   
   
 
@@ -218,11 +219,16 @@ if __name__ == "__main__":
   # charge_datas = get_xj_battery_charge_data(batch1_all_battery_data['1'])
   # print("this is the 1 battery ", charge_datas)
   # print(batch1_all_battery_data['1'].get_one_cycle_description(1))
-  battery1 = batch1_all_battery_data['1']
-  print(battery1.get_descriptions())
+  battery1 = batch1_all_battery_data['2C_battery-1']
+  # charge_datas = get_xj_battery_data(battery1, 1)
+  sohs =  cal_xj_battery_soh_data(battery1)
+  print(sohs)
+  # print(charge_datas)
+  # print(battery1.battery_name)
+  # print(battery1.get_descriptions())
   # battery1.get_degradation_trajectory()
   # print(battery1.get_degradation_trajectory())
-  print(battery1.get_capacity())
+  # print(battery1.get_capacity())
   
   # get_xj_data_file(
   #   read_xj_data_files(xj_data_files_path,batches_arr),
