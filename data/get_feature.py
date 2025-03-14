@@ -7,7 +7,6 @@ from pandas import DataFrame
 
 from data.xjbattery import Battery
 
-# dfs = {}
 
 """
   the XQ-_-25-1C 数据提取，包括时间，电压，容量，的数据按循环读取
@@ -88,8 +87,8 @@ def read_dfs_by_cycle_toSOH(df_key, dfs_data: dict):
     if c in [50, 150, 250, 350, 450, 550, 650, 750, 850, 950]:
       continue
     df_lim = df[df["循环"] == c]
-    sohs = np.array(list(df_lim["SoH"])).reshape(-1)
-    sohs_avg = round(np.mean(sohs), 6)
+    soh = np.array(list(df_lim["SoH"])).reshape(-1)
+    sohs_avg = round(np.mean(soh), 6)
     SOHs_label[i] = sohs_avg
     i += 1
   return SOHs_label
@@ -108,22 +107,23 @@ def read_dfs_by_cycle_toVol(df_key, dfs_data: dict):
   return np.array(Vols, dtype=object)
 
 
-def get_soh_labels(keys: [], label_flag:str):
+def get_soh_labels(keys: [], label_flag: str):
   SOH_Labels = {}
   if label_flag == "SE":
     for df_key in keys:
       soh_label = read_dfs_by_cycle_toSOH(df_key, dfs)
       SOH_Labels[df_key] = soh_label
-  
+
   elif label_flag == "XJ":
     # todo
     # get the xj_soh_labels
+    batch_data = get_xj_batch_data("Batch-1")
     for data_key in keys:
-      soh_label = cal_xj_battery_soh_data(batch1_all_battery_data[data_key])
+      soh_label = cal_xj_battery_soh_data(batch_data[data_key])
       SOH_Labels[data_key] = soh_label
   else:
     print("当前数据集flag不存在，请重新输入")
-    
+
   return SOH_Labels
 
 
@@ -158,18 +158,17 @@ def get_xj_data_file(files_path: {str, list[str]}, batch: str):
     if os.path.isfile(path):
       # idx = path.split("\\")[-1].split(".")[0].split("-")[-1]
       battery = Battery(path)
-      idx = battery.battery_name.split('\\')[-1]
+      idx = battery.battery_name.split("\\")[-1]
       mat_datas[idx] = battery
   print(f"the {batch} and have {len(paths)} battery")
   return mat_datas
 
 
-
-def get_xj_battery_data(battery: Battery, stage:int):
+def get_xj_battery_data(battery: Battery, stage: int):
   # name = battery.battery_name
   cycle_life = battery.cycle_life
   data_ = []
-  for i in range(1, cycle_life+1):
+  for i in range(1, cycle_life + 1):
     cap = battery.get_partial_value(i, 4, stage)
     vol = battery.get_partial_value(i, 2, stage)
     cur = battery.get_partial_value(i, 3, stage)
@@ -177,59 +176,61 @@ def get_xj_battery_data(battery: Battery, stage:int):
     # print(f"the every cycle cap len:{len(cap)}")
     cycle_data = {
       "cycle": i,
-      "capacity":cap,
-      "voltage":vol,
-      "current":cur,
-      "temperature":temp
+      "capacity": cap,
+      "voltage": vol,
+      "current": cur,
+      "temperature": temp,
     }
     data_.append(cycle_data)
 
   return data_
 
-def cal_xj_battery_soh_data(battery:Battery):
+
+def cal_xj_battery_soh_data(battery: Battery):
   caps = battery.get_capacity()
   max_cap = max(caps)
-  print("the max cap is :",max_cap)
-  sohs = []
+  print("the max cap is :", max_cap)
+  sohs_dict = {}
+  i = 0
   for cap in caps:
     soh = cap / max_cap
-    soh = f"{soh:.3f}"
-    sohs.append(soh)
-  return sohs
-  
-  
+    soh = float(f"{soh:.3f}")
+    sohs_dict[i] = soh
+    i += 1
+  return sohs_dict
 
-
-batch1_all_battery_data = get_xj_data_file(
-  read_xj_data_files(xj_data_files_path, batches_arr), "Batch-1"
-)
+def get_xj_batch_data(batch:str):
+  batch_battery_data = get_xj_data_file(
+    read_xj_data_files(xj_data_files_path, batches_arr), batch
+  )
+  return batch_battery_data
 
 """
   测试代码
 """
-
-if __name__ == "__main__":
-  # print(
-  #   "this is files path ",
-  #   read_xj_data_files(xj_data_files_path, batches_arr)
-  #
-  # datas = get_xj_data_file(
-  #   read_xj_data_files(xj_data_files_path, batches_arr), "Batch-1"
-  # )
-  # charge_datas = get_xj_battery_charge_data(batch1_all_battery_data['1'])
-  # print("this is the 1 battery ", charge_datas)
-  # print(batch1_all_battery_data['1'].get_one_cycle_description(1))
-  battery1 = batch1_all_battery_data['2C_battery-1']
-  # charge_datas = get_xj_battery_data(battery1, 1)
-  sohs =  cal_xj_battery_soh_data(battery1)
-  print(sohs)
+#
+# if __name__ == "__main__":
+#   # print(
+#   #   "this is files path ",
+#   #   read_xj_data_files(xj_data_files_path, batches_arr)
+#   #
+#   # datas = get_xj_data_file(
+#   #   read_xj_data_files(xj_data_files_path, batches_arr), "Batch-1"
+#   # )
+#   # charge_datas = get_xj_battery_charge_data(batch1_all_battery_data['1'])
+#   # print("this is the 1 battery ", charge_datas)
+#   # print(batch1_all_battery_data['1'].get_one_cycle_description(1))
+#   battery1 = batch1_all_battery_data["2C_battery-1"]
+#   # charge_datas = get_xj_battery_data(battery1, 1)
+#   sohs = cal_xj_battery_soh_data(battery1)
+#   print(sohs)
   # print(charge_datas)
   # print(battery1.battery_name)
   # print(battery1.get_descriptions())
   # battery1.get_degradation_trajectory()
   # print(battery1.get_degradation_trajectory())
   # print(battery1.get_capacity())
-  
+
   # get_xj_data_file(
   #   read_xj_data_files(xj_data_files_path,batches_arr),
   #   "Batch-1"

@@ -35,26 +35,26 @@ xj_test_image_keys = [
 xj_val_image_keys = ["2C_battery-8"]
 
 
-def get_images_path(image_dir: str, image_keys: [], image_flag):
+def get_images_path(image_dir: str, image_keys: [], image_flag: str):
   if not os.path.exists(image_dir):
     print("the image_dir is not exist,please input a new path")
   images = []
   if image_flag == "SE":
     # todo 添加判断xj文件目录
     for image_key in image_keys:
-      path = pathlib.Path(os.path.join(image_path, image_key + "-images"))
+      path = pathlib.Path(os.path.join(image_dir, image_key + "-images"))
       for P in path.iterdir():
         images.append(P.__str__())
   elif image_flag == "XJ":
     for image_key in image_keys:
-      path = pathlib.Path(os.path.join(image_path, image_key))
-      for P in path.iterdir():
+      path = pathlib.Path(os.path.join(image_dir, image_key))
+      path_dir = sorted(path.iterdir(), key=lambda p: p.name)
+      for P in path_dir:
         images.append(P.__str__())
 
   return images
 
 
-# todo 添加如何获取xj标签
 def get_labels(image_paths: [], SOH_Labels: dict, label_flag: str):
   labels = []
   if label_flag == "SE":
@@ -65,15 +65,13 @@ def get_labels(image_paths: [], SOH_Labels: dict, label_flag: str):
       labels.append(label)
   elif label_flag == "XJ":
     for path in image_paths:
-      # key =
-      print("")
+      key = path.split("\\")[-2]
+      idx = int(path.split("\\")[-1].split("-")[-1].split(".")[0]) - 1
+      label = SOH_Labels[key][idx]
+      labels.append(label)
   return labels
 
 
-# paths = get_images_path(image_path, image_keys)
-# labels = get_labels(paths, gs.get_soh_labels(image_keys))
-
-# print(labels)
 # key = "XQ-" + paths[0].split("\\")[-1].split("-")[1]
 # print(key)
 # idx = paths[0].split("\\")[-1].split("-")[-1].split(".")[0]
@@ -93,12 +91,18 @@ def get_transform():
 
 class BatteryDataset(Dataset):
   def __init__(
-    self, img_dir=image_path, img_keys=image_keys, labels=[], transform=None
+    self, img_dir=image_path, img_keys=None, path_data=None, labels=None, flag="SE", transform=None
   ):
+    if img_keys is None:
+      img_keys = image_keys
+    if labels is None:
+      labels = []
+    if path_data is None:
+      path_data = []
     self.img_dir = img_dir
     self.img_keys = img_keys
     self.transform = transform
-    self.path_data = get_images_path(img_dir, img_keys)
+    self.path_data = path_data
     # self.labels = gs.get_soh_labels()
     self.labels = labels
 
@@ -153,13 +157,25 @@ def create_loaders(path, keys, batch_size=32, loader_flag="SE"):
   # 获取所有路径和标签
   all_paths = get_images_path(path, keys, image_flag=loader_flag)
   all_labels = get_labels(
-    all_paths, gf.get_soh_labels(image_keys, loader_flag), label_flag=loader_flag
+    all_paths, gf.get_soh_labels(keys, loader_flag), label_flag=loader_flag
   )  # 假设gs已定义
 
+  if loader_flag == "SE":
+    train_keys, val_keys, test_keys = train_image_keys, val_image_keys, test_image_keys
+  elif loader_flag == "XJ":
+    train_keys, val_keys, test_keys = (
+      xj_train_image_keys,
+      xj_val_image_keys,
+      xj_test_image_keys,
+    )
+  else:
+    print("the flag error, please input ")
+    return {}
+
   # 按你的划分策略分离数据
-  train_paths = get_images_path(image_path, train_image_keys)
-  val_paths = get_images_path(image_path, val_image_keys)
-  test_paths = get_images_path(image_path, test_image_keys)
+  train_paths = get_images_path(path, train_keys, loader_flag)
+  val_paths = get_images_path(path, val_keys, loader_flag)
+  test_paths = get_images_path(path, test_keys, loader_flag)
 
   # 获取对应的标签切片
   def get_subset_labels(full_paths, subset_paths):
@@ -172,15 +188,30 @@ def create_loaders(path, keys, batch_size=32, loader_flag="SE"):
 
   # 创建数据集实例
   train_dataset = BatteryDataset(
-    img_keys=train_image_keys, labels=train_labels, transform=get_train_transform()
+    img_dir=path,
+    img_keys=train_keys,
+    path_data=train_paths,
+    labels=train_labels,
+    flag=loader_flag,
+    transform=get_train_transform(),
   )
 
   val_dataset = BatteryDataset(
-    img_keys=val_image_keys, labels=val_labels, transform=get_val_transform()
+    img_dir=path,
+    img_keys=val_keys,
+    path_data=val_paths,
+    labels=val_labels,
+    flag=loader_flag,
+    transform=get_val_transform(),
   )
 
   test_dataset = BatteryDataset(
-    img_keys=test_image_keys, labels=test_labels, transform=get_val_transform()
+    img_dir=path,
+    img_keys=test_keys,
+    path_data=test_paths,
+    labels=test_labels,
+    flag=loader_flag,
+    transform=get_val_transform(),
   )
 
   # 创建DataLoader
@@ -201,8 +232,9 @@ def create_loaders(path, keys, batch_size=32, loader_flag="SE"):
 
 # 使用示例
 if __name__ == "__main__":
-  train_loader, val_loader, test_loader = create_loaders(batch_size=16)
-
+  train_loader, val_loader, test_loader = create_loaders(
+    xj_image_path, xj_image_keys, loader_flag="XJ"
+  )
   # 验证数据流
   for images, labels in train_loader:
     print(f"Train Batch - Images: {images.shape}, Labels: {labels.shape}")
@@ -211,3 +243,9 @@ if __name__ == "__main__":
   for images, labels in val_loader:
     print(f"Val Batch - Images: {images.shape}, Labels: {labels.shape}")
     break
+  # paths = get_images_path(xj_image_path, xj_image_keys, "XJ")
+  # labels = get_labels(
+  #   paths,
+  #   gf.get_soh_labels(xj_image_keys, "XJ"), "XJ"
+  # )
+  # print(labels)
