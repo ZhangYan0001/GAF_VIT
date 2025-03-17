@@ -42,13 +42,13 @@ def conv_gaf_image():
       print("this caps normalized: ", caps_normalized)
 
       image_size = len(caps)
-      gaf = GramianAngularField(
+      gaf_data = GramianAngularField(
         image_size= image_size,
         method = "summation",
         sample_range=(-1,1)
       )
 
-      gaf_images = gaf.fit_transform(caps_normalized.reshape(1,-1))
+      gaf_images = gaf_data.fit_transform(caps_normalized.reshape(1, -1))
 
       plt.figure(figsize=(5,5))
       plt.imshow(gaf_images[0], cmap="viridis", origin="lower")

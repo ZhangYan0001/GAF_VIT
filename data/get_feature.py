@@ -1,12 +1,14 @@
 import os.path
 from typing import Any
 
+import matplotlib
 import numpy as np
 import pandas as pd
 from pandas import DataFrame
 
 from data.xjbattery import Battery
-
+from gaf_conv.fusion import  fusion, gaf
+import matplotlib.pyplot as plt
 
 """
   the XQ-_-25-1C 数据提取，包括时间，电压，容量，的数据按循环读取
@@ -199,42 +201,73 @@ def cal_xj_battery_soh_data(battery: Battery):
     i += 1
   return sohs_dict
 
-def get_xj_batch_data(batch:str):
+
+def get_xj_batch_data(batch: str):
   batch_battery_data = get_xj_data_file(
     read_xj_data_files(xj_data_files_path, batches_arr), batch
   )
   return batch_battery_data
 
+
 """
   测试代码
 """
 #
-# if __name__ == "__main__":
-#   # print(
-#   #   "this is files path ",
-#   #   read_xj_data_files(xj_data_files_path, batches_arr)
-#   #
-#   # datas = get_xj_data_file(
-#   #   read_xj_data_files(xj_data_files_path, batches_arr), "Batch-1"
-#   # )
-#   # charge_datas = get_xj_battery_charge_data(batch1_all_battery_data['1'])
-#   # print("this is the 1 battery ", charge_datas)
-#   # print(batch1_all_battery_data['1'].get_one_cycle_description(1))
-#   battery1 = batch1_all_battery_data["2C_battery-1"]
+if __name__ == "__main__":
+  #   # print(
+  #   #   "this is files path ",
+  #   #   read_xj_data_files(xj_data_files_path, batches_arr)
+  #   #
+  datas = get_xj_data_file(
+    read_xj_data_files(xj_data_files_path, batches_arr), "Batch-1"
+  )
+  #   # charge_datas = get_xj_battery_charge_data(batch1_all_battery_data['1'])
+  #   # print("this is the 1 battery ", charge_datas)
+  #   # print(batch1_all_battery_data['1'].get_one_cycle_description(1))
+  battery1 = datas["2C_battery-1"]
+  bdata_ = get_xj_battery_data(battery1, 1)
+  fusion_datas = []
+  for cycle in bdata_:
+    i = cycle["cycle"]-1
+    # cap_ = bdata_[i]["capacity"]
+    vol_ = bdata_[i]["voltage"]
+    cur_ = bdata_[i]["current"]
+    temp_ = bdata_[i]["temperature"]
+    # print("the vol", vol)
+
+    # cap_ = gaf(cap_)
+    vol_, cur_, temp_ = gaf(vol_), gaf(cur_), gaf(temp_)
+    plt.subplot(1,4,1)
+    plt.imshow(vol_[0])
+    plt.subplot(1,4,2)
+    plt.imshow(cur_[0])
+    plt.subplot(1,4,3)
+    plt.imshow(temp_[0])
+    fusion_data = fusion(vol_, cur_, temp_)
+    print("the fusion data", fusion_data.shape)
+    plt.subplot(1,4,4)
+    plt.imshow(fusion_data[0])
+    plt.title("128x128x3 image")
+    plt.show()
+    plt.close()
+    fusion_datas.append(fusion_data)
+
+  
+  print(fusion_datas)
 #   # charge_datas = get_xj_battery_data(battery1, 1)
 #   sohs = cal_xj_battery_soh_data(battery1)
 #   print(sohs)
-  # print(charge_datas)
-  # print(battery1.battery_name)
-  # print(battery1.get_descriptions())
-  # battery1.get_degradation_trajectory()
-  # print(battery1.get_degradation_trajectory())
-  # print(battery1.get_capacity())
+# print(charge_datas)
+# print(battery1.battery_name)
+# print(battery1.get_descriptions())
+# battery1.get_degradation_trajectory()
+# print(battery1.get_degradation_trajectory())
+# print(battery1.get_capacity())
 
-  # get_xj_data_file(
-  #   read_xj_data_files(xj_data_files_path,batches_arr),
-  #   "Batch-1"
-  # )
+# get_xj_data_file(
+#   read_xj_data_files(xj_data_files_path,batches_arr),
+#   "Batch-1"
+# )
 #   Vols_data = read_dfs_by_cycle_toVol("XQ-11", dfs)
 #   print("the Vols: ", Vols_data)
 #   print("the dfs: ", dfs)
