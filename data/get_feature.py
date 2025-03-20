@@ -7,7 +7,7 @@ import pandas as pd
 from pandas import DataFrame
 
 from data.xjbattery import Battery
-from gaf_conv.fusion import  fusion, gaf
+# from gaf_conv.fusion import fusion, gaf
 import matplotlib.pyplot as plt
 
 """
@@ -117,8 +117,6 @@ def get_soh_labels(keys: [], label_flag: str):
       SOH_Labels[df_key] = soh_label
 
   elif label_flag == "XJ":
-    # todo
-    # get the xj_soh_labels
     batch_data = get_xj_batch_data("Batch-1")
     for data_key in keys:
       soh_label = cal_xj_battery_soh_data(batch_data[data_key])
@@ -213,47 +211,41 @@ def get_xj_batch_data(batch: str):
   测试代码
 """
 #
-if __name__ == "__main__":
-  #   # print(
-  #   #   "this is files path ",
-  #   #   read_xj_data_files(xj_data_files_path, batches_arr)
-  #   #
-  datas = get_xj_data_file(
-    read_xj_data_files(xj_data_files_path, batches_arr), "Batch-1"
-  )
-  #   # charge_datas = get_xj_battery_charge_data(batch1_all_battery_data['1'])
-  #   # print("this is the 1 battery ", charge_datas)
-  #   # print(batch1_all_battery_data['1'].get_one_cycle_description(1))
-  battery1 = datas["2C_battery-1"]
-  bdata_ = get_xj_battery_data(battery1, 1)
-  fusion_datas = []
-  for cycle in bdata_:
-    i = cycle["cycle"]-1
-    # cap_ = bdata_[i]["capacity"]
-    vol_ = bdata_[i]["voltage"]
-    cur_ = bdata_[i]["current"]
-    temp_ = bdata_[i]["temperature"]
-    # print("the vol", vol)
-
-    # cap_ = gaf(cap_)
-    vol_, cur_, temp_ = gaf(vol_), gaf(cur_), gaf(temp_)
-    plt.subplot(1,4,1)
-    plt.imshow(vol_[0])
-    plt.subplot(1,4,2)
-    plt.imshow(cur_[0])
-    plt.subplot(1,4,3)
-    plt.imshow(temp_[0])
-    fusion_data = fusion(vol_, cur_, temp_)
-    print("the fusion data", fusion_data.shape)
-    plt.subplot(1,4,4)
-    plt.imshow(fusion_data[0])
-    plt.title("128x128x3 image")
-    plt.show()
-    plt.close()
-    fusion_datas.append(fusion_data)
+# if __name__ == "__main__":
+#   #   # print(
+#   #   #   "this is files path ",
+#   #   #   read_xj_data_files(xj_data_files_path, batches_arr)
+#   #   #
+#   datas = get_xj_data_file(
+#     read_xj_data_files(xj_data_files_path, batches_arr), "Batch-1"
+#   )
+#   #   # charge_datas = get_xj_battery_charge_data(batch1_all_battery_data['1'])
+#   #   # print("this is the 1 battery ", charge_datas)
+#   #   # print(batch1_all_battery_data['1'].get_one_cycle_description(1))
+#   battery1 = datas["2C_battery-1"]
+#   bdata_ = get_xj_battery_data(battery1, 1)
+#   fusion_datas = []
+#   for cycle in bdata_:
+#     i = cycle["cycle"]-1
+#     # cap_ = bdata_[i]["capacity"]
+#     vol_ = bdata_[i]["voltage"]
+#     cur_ = bdata_[i]["current"]
+#     temp_ = bdata_[i]["temperature"]
+#     # print("the vol", vol)
+#
+#     # cap_ = gaf(cap_)
+#     vol_, cur_, temp_ = gaf(vol_), gaf(cur_), gaf(temp_)
+#     fusion_data = fusion(vol_, cur_, temp_)
+#     print("the fusion data", fusion_data.shape)
+#     plt.subplot(1,4,4)
+#     plt.imshow(fusion_data)
+#     plt.title("128x128x3 image")
+#     plt.show()
+#     plt.close()
+#     fusion_datas.append(fusion_data)
 
   
-  print(fusion_datas)
+  # print(fusion_datas)
 #   # charge_datas = get_xj_battery_data(battery1, 1)
 #   sohs = cal_xj_battery_soh_data(battery1)
 #   print(sohs)

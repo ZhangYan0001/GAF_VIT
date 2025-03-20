@@ -60,7 +60,7 @@ def conv_gaf_image():
 
 
 def xj_conv_gaf_image():
-  all_battery_data = gf.batch1_all_battery_data
+  all_battery_data = gf.get_xj_batch_data("Batch-1")
   for battery_idx, battery_data in all_battery_data.items():
     output_path = r"D:\1New\Coding\GAF_VIT\xj_images" +f"\\{battery_idx}"
     if not os.path.exists(output_path):
