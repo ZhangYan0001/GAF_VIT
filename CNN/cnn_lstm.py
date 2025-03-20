@@ -19,22 +19,22 @@ class CnnLstmRegressor(nn.Module):
       nn.MaxPool2d(2),
       nn.Flatten(),
     )
-
+    cnn_output_dim = 64 * (img_size // 4) ** 2
     self.lstm = nn.LSTM(
-      input_size=64 * (img_size // 4) * (img_size // 4),
+      input_size=cnn_output_dim,
       hidden_size=lstm_units,
       batch_first=True,
     )
 
-    self.fc1 = nn.Linear(lstm_units, 64)
+    self.fc1 = nn.Linear(lstm_units, fc_units)
     self.dropout = nn.Dropout(0.2)
-    self.fc2 = nn.Linear(64, 1)
+    self.fc2 = nn.Linear(fc_units, 1)
 
   def forward(self, x):
     batch_size, time_steps, C, H, W = x.size()
-    x = x.view(-1, x.shape[2], x.shape[3], x.shape[4])
+    x = x.view(batch_size * time_steps, C, H, W)
     x = self.cnn(x)
-    x = x.view(-1, self.time_steps, 64 * (x.shape[2]) * (x.shape[3]))
+    x = x.view(batch_size, time_steps, -1)
     x, _ = self.lstm(x)
     x = self.dropout(F.relu(self.fc1(x[:, -1, :])))
-    return self.fc1(x)
+    return self.fc2(x)
