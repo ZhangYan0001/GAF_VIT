@@ -170,7 +170,10 @@ class Battery:
     index = np.insert(index, len(index), len(value))
     value = value[index[stage - 1] : index[stage]]
     return value
-
+  
+  def get_original_partial_value(self, cycle, variable, stage=1):
+    return self.get_partial_value.__wrapped__(self, cycle, variable, stage)
+  
   # 如果需要重采样，则取消下面这行注释
   # @interpolate_resample(resample=False,num_points=128)
   def get_CC_value(self, cycle, variable, voltage_range=None):

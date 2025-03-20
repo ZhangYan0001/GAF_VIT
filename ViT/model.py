@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.init as init
 import torch.nn.functional as F
 from functools import partial
+from timm.models.registry import register_model
 
 def to_2tuple(x):
   return tuple([x] * 2)
@@ -313,6 +314,18 @@ class VisionTransformer(nn.Module):
     x = x.squeeze(-1)
     return x
 
+
+@register_model
+def vit_model1(pretrained= False, **kwargs):
+  model = VisionTransformer(
+    patch_size=16,
+    embed_dim=768,
+    num_heads=12,
+    mlp_ratio=4,
+    qkv_bias=True,
+  )
+
+  return model
 
 # def test_multi_device():
 #   devices = ["cpu"] + (["cuda"] if torch.cuda.is_available() else [])
