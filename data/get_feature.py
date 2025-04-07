@@ -5,8 +5,10 @@ import matplotlib
 import numpy as np
 import pandas as pd
 from pandas import DataFrame
+from scipy.interpolate import interp1d
 
 from data.xjbattery import Battery
+from data.tjbattery import TJBattery
 # from gaf_conv.fusion import fusion, gaf
 import matplotlib.pyplot as plt
 
@@ -109,7 +111,7 @@ def read_dfs_by_cycle_toVol(df_key, dfs_data: dict):
   return np.array(Vols, dtype=object)
 
 
-def get_soh_labels(keys: [], label_flag: str):
+def get_soh_labels(keys: [], label_flag: str, xj_batch="Batch-1", tj_batch="Dataset_1_NCA_battery"):
   SOH_Labels = {}
   if label_flag == "SE":
     for df_key in keys:
@@ -117,10 +119,16 @@ def get_soh_labels(keys: [], label_flag: str):
       SOH_Labels[df_key] = soh_label
 
   elif label_flag == "XJ":
-    batch_data = get_xj_batch_data("Batch-1")
+    batch_data = get_xj_batch_data(xj_batch)
     for data_key in keys:
       soh_label = cal_xj_battery_soh_data(batch_data[data_key])
       SOH_Labels[data_key] = soh_label
+  elif label_flag == "TJ":
+    # todo 获取SOH
+    batch_data = get_tj_all_datas(tj_batch)
+    for key in keys:
+      soh_label = cal_tj_soh_battery(batch_data[key])
+      SOH_Labels[key] = soh_label
   else:
     print("当前数据集flag不存在，请重新输入")
 
@@ -206,23 +214,113 @@ def get_xj_batch_data(batch: str):
   )
   return batch_battery_data
 
+"""
+TJU datasets
+"""
+tj_data_files_path = r"D:\1New\Coding\Datasets\TJU"
+tj_batches_arr = ["Dataset_1_NCA_battery", "Dataset_2_NCM_battery"]
+
+
+def read_tj_data_files(path: str, batches: list[str]):
+  files_count = {}
+  for batch in batches:
+    current_path = os.path.join(path, batch)
+    if not os.path.isdir(current_path):
+      print(f"error: {current_path} is not exist.")
+      break
+
+    filenames = os.listdir(current_path)
+    files_count[batch] = [
+      os.path.join(current_path, filename) for filename in filenames
+    ]
+
+  return files_count
+
+def get_tj_data_file(files_path: {str, list[str]}, batch: str):
+  paths = files_path[batch]
+  pd_datas = {}
+  for path in paths:
+    if os.path.isfile(path):
+      # idx = path.split("\\")[-1].split(".")[0].split("-")[-1]
+      battery = TJBattery(path)
+      idx = battery.battery_name
+      pd_datas[idx] = battery
+  print(f"the {batch} and have {len(paths)} battery")
+  return pd_datas
+
+
+def get_tj_battery_data(battery: TJBattery):
+  # name = battery.battery_name
+  cycle_idxs = battery._get_cycle_index()
+  data_ = []
+  for idx in cycle_idxs:
+    # cap = battery.get_value(idx, )
+    vol = battery.get_value(idx, "Ecell/V")
+    cur = battery.get_value(idx, "<I>/mA")
+    rel_vol = battery.get_rel_voltage(idx)
+    ch_rel_vol = [v for v in rel_vol if v > 3.5]
+    dch_rel_vol = [v for v in rel_vol if v < 3.5]
+    cycle_data = {
+      "cycle": idx,
+      "voltage": vol,
+      "current": cur,
+      "rel_voltage":rel_vol,
+      "charge_rel_voltage":ch_rel_vol,
+      "discharge_rel_voltage":dch_rel_vol,
+    }
+    data_.append(cycle_data)
+
+  return data_
+
+def cal_tj_soh_battery(battery:TJBattery):
+  caps = battery.get_degradation_trajectory()
+  max_cap = max(caps)
+  print("the max cap is :", max_cap)
+  sohs_dict = {}
+  i = 0
+  for cap in caps:
+    soh = cap / max_cap
+    soh = float(f"{soh:.3f}")
+    sohs_dict[i] = soh
+    i += 1
+  return sohs_dict
+  
+def resample(series, new_length):
+  x_original = np.linspace(0,1, len(series))
+  x_new = np.linspace(0, 1, new_length)
+  f = interp1d(x_original, series, kind='linear')
+  return f(x_new)
+
+def get_tj_all_datas(batch_name:str):
+  tj_all_files = read_tj_data_files(tj_data_files_path, tj_batches_arr)
+  batch_all_datas = get_tj_data_file(tj_all_files, batch_name)
+  return  batch_all_datas
+  
 
 """
   测试代码
 """
 #
 # if __name__ == "__main__":
-#   #   # print(
-#   #   #   "this is files path ",
-#   #   #   read_xj_data_files(xj_data_files_path, batches_arr)
-#   #   #
+#   tj_files = read_tj_data_files(tj_data_files_path, tj_batches_arr)
+#   battery_datas_1 = get_tj_data_file(tj_files, "Dataset_1_NCA_battery")
+#
+#   for _, battery in battery_datas_1.items():
+#     battery_data = get_tj_battery_data(battery)
+#     battery_soh = cal_tj_soh_battery(battery)
+#     for cycle in battery_data:
+#       vol = cycle["voltage"]
+#       cur = cycle["current"]
+#       print("the cycle data: ", vol, cur)
+      
 #   datas = get_xj_data_file(
 #     read_xj_data_files(xj_data_files_path, batches_arr), "Batch-1"
 #   )
 #   #   # charge_datas = get_xj_battery_charge_data(batch1_all_battery_data['1'])
 #   #   # print("this is the 1 battery ", charge_datas)
 #   #   # print(batch1_all_battery_data['1'].get_one_cycle_description(1))
-#   battery1 = datas["2C_battery-1"]
+#   battery1 = datas[""]
+
 #   bdata_ = get_xj_battery_data(battery1, 1)
 #   fusion_datas = []
 #   for cycle in bdata_:

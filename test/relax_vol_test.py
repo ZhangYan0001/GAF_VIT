@@ -19,20 +19,16 @@ def draw_rel_voltage():
     cycle = bty_d.cycle_life
     
     vol_charge_l = []
-    for i in range(1, cycle):
+    for i in range(2, cycle):
       rel_voltage_charge = bty_d.get_original_partial_value(i, 2, 4)
       mean_rel_vol = np.mean(rel_voltage_charge)
       vol_charge_l.append(mean_rel_vol)
     
     x_ = np.array(vol_charge_l)
-    y_ = np.array(list(cal_xj_battery_soh_data(bty_d).values())[:-1])
-    data = pd.DataFrame({
-      "X": x_,
-      "Y": y_,
-    })
-    corr_ = data.corr(method="pearson")
-    r_ = corr_.loc["X", "Y"]
-    print(f"Pearson 相关性系数 r = {r_:.2f}")
+    y_ = np.array(list(cal_xj_battery_soh_data(bty_d).values())[1:-1])
+
+    r_ = np.corrcoef(x_, y_)[0,1]
+    print(f"Pearson 相关性系数 r = {r_:.3f}")
     plt.plot(vol_charge_l)
     # plt.ylim(4.15,4.20)
     plt.legend()
@@ -147,6 +143,6 @@ def plt_img_rel():
       plt.show()
 
 if __name__ == "__main__":
-  # draw_rel_voltage()
-  draw_rel_voltage_by_cycle()
+  draw_rel_voltage()
+  # draw_rel_voltage_by_cycle()
   # draw_voltage_current()

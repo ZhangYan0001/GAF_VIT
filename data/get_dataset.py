@@ -12,6 +12,7 @@ from data.xjbattery import Battery
 
 image_path = r"D:\1New\Coding\GAF_VIT\images3"
 xj_image_path = r"D:\1New\Coding\GAF_VIT\xj_images"
+tj_image_path = r"D:\1New\Coding\GAF_VIT\tj_images\Dataset_1_NCA_battery"
 image_keys = ["XQ-11", "XQ-12", "XQ-14", "XQ-15", "XQ-16", "XQ-17", "XQ-18"]
 train_image_keys = ["XQ-11", "XQ-12", "XQ-14", "XQ-15"]
 test_image_keys = ["XQ-16", "XQ-17"]
@@ -34,6 +35,14 @@ xj_test_image_keys = [
 ]
 xj_val_image_keys = ["2C_battery-8"]
 
+tj_image_keys = {
+  "CY25-025_1-#": ["CY25-025_1-#" + str(i) for i in range(1, 8)],
+  "CY25-1_1-#": ["CY25-1_1-#" + str(i) for i in range(1, 10)],
+  "CY25-05_1-#": ["CY25-05_1-#" + str(i) for i in range(1, 20)],
+  "CY35-05_1-#": ["CY35-05_1-#" + str(i) for i in range(1, 4)],
+  "CY45-05_1-#": ["CY45-05_1-#" + str(i) for i in range(1, 29)],
+}
+
 
 def get_images_path(image_dir: str, image_keys: [], image_flag: str):
   if not os.path.exists(image_dir):
@@ -51,6 +60,13 @@ def get_images_path(image_dir: str, image_keys: [], image_flag: str):
       path_dir = sorted(path.iterdir(), key=lambda p: p.name)
       for P in path_dir:
         images.append(P.__str__())
+  elif image_flag == "TJ":
+    # todo 获取TJ图
+    for image_key in image_keys:
+      path = pathlib.Path(os.path.join(image_dir, image_key))
+      for P in path.iterdir():
+        images.append(P.__str__())
+    print()
 
   return images
 
@@ -69,6 +85,11 @@ def get_labels(image_paths: [], SOH_Labels: dict, label_flag: str):
       idx = int(path.split("\\")[-1].split("-")[-1].split(".")[0]) - 1
       label = SOH_Labels[key][idx]
       labels.append(label)
+  elif label_flag == "TJ":
+    for path in image_paths:
+      # todo 获取SOH标签
+      print()
+
   return labels
 
 
@@ -91,7 +112,7 @@ def get_transform():
 
 class BatteryDataset(Dataset):
   def __init__(
-    self, img_dir=image_path, img_keys=None, path_data=None, labels=None, flag="SE", transform=None
+    self, img_dir=image_path, img_keys=None, path_data=None, labels=None, transform=None
   ):
     if img_keys is None:
       img_keys = image_keys
@@ -192,7 +213,6 @@ def create_loaders(path, keys, batch_size=32, loader_flag="SE"):
     img_keys=train_keys,
     path_data=train_paths,
     labels=train_labels,
-    flag=loader_flag,
     transform=get_train_transform(),
   )
 
@@ -201,7 +221,6 @@ def create_loaders(path, keys, batch_size=32, loader_flag="SE"):
     img_keys=val_keys,
     path_data=val_paths,
     labels=val_labels,
-    flag=loader_flag,
     transform=get_val_transform(),
   )
 
@@ -210,7 +229,6 @@ def create_loaders(path, keys, batch_size=32, loader_flag="SE"):
     img_keys=test_keys,
     path_data=test_paths,
     labels=test_labels,
-    flag=loader_flag,
     transform=get_val_transform(),
   )
 
