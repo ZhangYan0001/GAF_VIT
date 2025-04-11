@@ -126,7 +126,10 @@ def tj_conv_gaf_image(batch_name:str):
       rel_vols = cycle_data["rel_voltage"]
       ch_rel_vols = cycle_data["charge_rel_voltage"]
       dch_rel_vols = cycle_data["discharge_rel_voltage"]
-
+      
+      if len(dch_rel_vols) == 0:
+        continue
+       
       re_data = gf.resample(dch_rel_vols, 224)
       
       scaler = MinMaxScaler(feature_range=(-1, 1))
@@ -148,7 +151,7 @@ def tj_conv_gaf_image(batch_name:str):
       plt.yticks([])
       plt.axis("off")
       plt.tight_layout()
-      plt.savefig(output_path + f"\\{battery_idx}" + f"-{cycle}.png", bbox_inches="tight", pad_inches=0)
+      plt.savefig(output_path + f"\\{battery_idx}" + f"-{int(cycle)}.png", bbox_inches="tight", pad_inches=0)
 
 if __name__ == '__main__':
     # conv_gaf_image()

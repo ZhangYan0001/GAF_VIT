@@ -1,5 +1,6 @@
 import os
 import pathlib
+import re
 
 import torch
 from PIL import Image
@@ -35,6 +36,7 @@ xj_test_image_keys = [
 ]
 xj_val_image_keys = ["2C_battery-8"]
 
+# Dataset_1_NCA_battery
 tj_image_keys = {
   "CY25-025_1-#": ["CY25-025_1-#" + str(i) for i in range(1, 8)],
   "CY25-1_1-#": ["CY25-1_1-#" + str(i) for i in range(1, 10)],
@@ -42,6 +44,29 @@ tj_image_keys = {
   "CY35-05_1-#": ["CY35-05_1-#" + str(i) for i in range(1, 4)],
   "CY45-05_1-#": ["CY45-05_1-#" + str(i) for i in range(1, 29)],
 }
+
+tj_train_image_keys = (
+  tj_image_keys["CY25-025_1-#"][0:5]
+  + tj_image_keys["CY25-1_1-#"][0:6]
+  + tj_image_keys["CY25-05_1-#"][0:14]
+  + tj_image_keys["CY35-05_1-#"][0:1]
+  + tj_image_keys["CY45-05_1-#"][0:21]
+)
+tj_val_image_keys = (
+  tj_image_keys["CY25-025_1-#"][5:6]
+  + tj_image_keys["CY25-1_1-#"][6:8]
+  + tj_image_keys["CY25-05_1-#"][14:17]
+  + tj_image_keys["CY35-05_1-#"][1:2]
+  + tj_image_keys["CY45-05_1-#"][21:25]
+)
+tj_test_image_keys = (
+  tj_image_keys["CY25-025_1-#"][6:]
+  + tj_image_keys["CY25-1_1-#"][8:]
+  + tj_image_keys["CY25-05_1-#"][17:]
+  + tj_image_keys["CY35-05_1-#"][2:]
+  + tj_image_keys["CY45-05_1-#"][25:]
+)
+tj_image_keys = [key for keys in list(tj_image_keys.values()) for key in keys]
 
 
 def get_images_path(image_dir: str, image_keys: [], image_flag: str):
@@ -66,7 +91,6 @@ def get_images_path(image_dir: str, image_keys: [], image_flag: str):
       path = pathlib.Path(os.path.join(image_dir, image_key))
       for P in path.iterdir():
         images.append(P.__str__())
-    print()
 
   return images
 
@@ -87,8 +111,10 @@ def get_labels(image_paths: [], SOH_Labels: dict, label_flag: str):
       labels.append(label)
   elif label_flag == "TJ":
     for path in image_paths:
-      # todo 获取SOH标签
-      print()
+      key = path.split("\\")[-2]
+      idx = int(re.search(r"#(\d+)-\d+\.png", path.split("\\")[-1]).group(1))
+      label = SOH_Labels[key][idx]
+      labels.append(label)
 
   return labels
 
@@ -250,18 +276,22 @@ def create_loaders(path, keys, batch_size=32, loader_flag="SE"):
 
 # 使用示例
 if __name__ == "__main__":
-  train_loader, val_loader, test_loader = create_loaders(
-    xj_image_path, xj_image_keys, loader_flag="XJ"
-  )
-  # 验证数据流
-  for images, labels in train_loader:
-    print(f"Train Batch - Images: {images.shape}, Labels: {labels.shape}")
-    break
-
-  for images, labels in val_loader:
-    print(f"Val Batch - Images: {images.shape}, Labels: {labels.shape}")
-    break
-  # paths = get_images_path(xj_image_path, xj_image_keys, "XJ")
+  print(tj_image_keys)
+  print(tj_train_image_keys)
+  print(tj_val_image_keys)
+  print(tj_test_image_keys)
+  # train_loader, val_loader, test_loader = create_loaders(
+  #   xj_image_path, xj_image_keys, loader_flag="XJ"
+  # )
+  # # 验证数据流
+  # for images, labels in train_loader:
+  #   print(f"Train Batch - Images: {images.shape}, Labels: {labels.shape}")
+  #   break
+  #
+  # for images, labels in val_loader:
+  #   print(f"Val Batch - Images: {images.shape}, Labels: {labels.shape}")
+  #   break
+  # paths = get_images_path(tj_image_path, xj_image_keys, "XJ")
   # labels = get_labels(
   #   paths,
   #   gf.get_soh_labels(xj_image_keys, "XJ"), "XJ"

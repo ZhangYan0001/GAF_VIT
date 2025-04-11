@@ -140,7 +140,7 @@ class TJBattery:
     
     vol_all = self.get_value(cycle, "Ecell/V")
     cur_all = self.get_value(cycle, "<I>/mA")
-    rel_voltage = [v for v, c in zip(vol_all, cur_all) if c == 0 ]
+    rel_voltage = [v for v, c in zip(vol_all, cur_all) if c == 0 and v != 0 ]
     
     return rel_voltage
   
