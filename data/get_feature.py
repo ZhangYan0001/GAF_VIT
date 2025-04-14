@@ -9,6 +9,7 @@ from scipy.interpolate import interp1d
 
 from data.xjbattery import Battery
 from data.tjbattery import TJBattery
+
 # from gaf_conv.fusion import fusion, gaf
 import matplotlib.pyplot as plt
 
@@ -111,7 +112,9 @@ def read_dfs_by_cycle_toVol(df_key, dfs_data: dict):
   return np.array(Vols, dtype=object)
 
 
-def get_soh_labels(keys: [], label_flag: str, xj_batch="Batch-1", tj_batch="Dataset_1_NCA_battery"):
+def get_soh_labels(
+  keys: [], label_flag: str, xj_batch="Batch-1", tj_batch="Dataset_1_NCA_battery"
+):
   SOH_Labels = {}
   if label_flag == "SE":
     for df_key in keys:
@@ -127,7 +130,10 @@ def get_soh_labels(keys: [], label_flag: str, xj_batch="Batch-1", tj_batch="Data
     # todo 获取SOH
     batch_data = get_tj_all_datas(tj_batch)
     for key in keys:
-      soh_label = cal_tj_soh_battery(batch_data[key])
+      soh_label = {
+        data["cycle"]: data["soh"] for data in get_tj_battery_data(batch_data[key])
+      }
+      # soh_label = cal_tj_soh_battery(batch_data[key])
       SOH_Labels[key] = soh_label
   else:
     print("当前数据集flag不存在，请重新输入")
@@ -176,7 +182,7 @@ def get_xj_battery_data(battery: Battery, stage: int):
   # name = battery.battery_name
   cycle_life = battery.cycle_life
   data_ = []
-  for i in range(1, cycle_life + 1):
+  for i, cap in range(1, cycle_life + 1):
     cap = battery.get_partial_value(i, 4, stage)
     vol = battery.get_partial_value(i, 2, stage)
     cur = battery.get_partial_value(i, 3, stage)
@@ -214,6 +220,7 @@ def get_xj_batch_data(batch: str):
   )
   return batch_battery_data
 
+
 """
 TJU datasets
 """
@@ -236,6 +243,7 @@ def read_tj_data_files(path: str, batches: list[str]):
 
   return files_count
 
+
 def get_tj_data_file(files_path: {str, list[str]}, batch: str):
   paths = files_path[batch]
   pd_datas = {}
@@ -252,8 +260,10 @@ def get_tj_data_file(files_path: {str, list[str]}, batch: str):
 def get_tj_battery_data(battery: TJBattery):
   # name = battery.battery_name
   cycle_idxs = battery._get_cycle_index()
+  caps = battery.get_degradation_trajectory()
+  max_caps = max(caps)
   data_ = []
-  for idx in cycle_idxs:
+  for idx, cap in zip(cycle_idxs, caps):
     # cap = battery.get_value(idx, )
     vol = battery.get_value(idx, "Ecell/V")
     cur = battery.get_value(idx, "<I>/mA")
@@ -261,18 +271,21 @@ def get_tj_battery_data(battery: TJBattery):
     ch_rel_vol = [v for v in rel_vol if v > 3.5]
     dch_rel_vol = [v for v in rel_vol if v < 3.5]
     cycle_data = {
-      "cycle": idx,
+      "cycle": int(idx),
       "voltage": vol,
       "current": cur,
-      "rel_voltage":rel_vol,
-      "charge_rel_voltage":ch_rel_vol,
-      "discharge_rel_voltage":dch_rel_vol,
+      "rel_voltage": rel_vol,
+      "charge_rel_voltage": ch_rel_vol,
+      "discharge_rel_voltage": dch_rel_vol,
+      "capacity": cap,
+      "soh": float(cap / max_caps),
     }
     data_.append(cycle_data)
 
   return data_
 
-def cal_tj_soh_battery(battery:TJBattery):
+
+def cal_tj_soh_battery(battery: TJBattery):
   caps = battery.get_degradation_trajectory()
   max_cap = max(caps)
   print("the max cap is :", max_cap)
@@ -284,35 +297,39 @@ def cal_tj_soh_battery(battery:TJBattery):
     sohs_dict[i] = soh
     i += 1
   return sohs_dict
-  
+
+
 def resample(series, new_length):
-  x_original = np.linspace(0,1, len(series))
+  x_original = np.linspace(0, 1, len(series))
   x_new = np.linspace(0, 1, new_length)
-  f = interp1d(x_original, series, kind='linear')
+  f = interp1d(x_original, series, kind="linear")
   return f(x_new)
 
-def get_tj_all_datas(batch_name:str):
+
+def get_tj_all_datas(batch_name: str):
   tj_all_files = read_tj_data_files(tj_data_files_path, tj_batches_arr)
   batch_all_datas = get_tj_data_file(tj_all_files, batch_name)
-  return  batch_all_datas
-  
+  return batch_all_datas
+
 
 """
   测试代码
 """
 #
-# if __name__ == "__main__":
-#   tj_files = read_tj_data_files(tj_data_files_path, tj_batches_arr)
-#   battery_datas_1 = get_tj_data_file(tj_files, "Dataset_1_NCA_battery")
-#
-#   for _, battery in battery_datas_1.items():
-#     battery_data = get_tj_battery_data(battery)
-#     battery_soh = cal_tj_soh_battery(battery)
+if __name__ == "__main__":
+  tj_files = read_tj_data_files(tj_data_files_path, tj_batches_arr)
+  battery_datas_1 = get_tj_data_file(tj_files, "Dataset_1_NCA_battery")
+  #
+  for _, battery in battery_datas_1.items():
+    battery_data = get_tj_battery_data(battery)
+    print(battery_data)
+    # battery_soh = cal_tj_soh_battery(battery)
+    # print(battery_soh)
 #     for cycle in battery_data:
 #       vol = cycle["voltage"]
 #       cur = cycle["current"]
 #       print("the cycle data: ", vol, cur)
-      
+
 #   datas = get_xj_data_file(
 #     read_xj_data_files(xj_data_files_path, batches_arr), "Batch-1"
 #   )
@@ -342,8 +359,8 @@ def get_tj_all_datas(batch_name:str):
 #     plt.close()
 #     fusion_datas.append(fusion_data)
 
-  
-  # print(fusion_datas)
+
+# print(fusion_datas)
 #   # charge_datas = get_xj_battery_data(battery1, 1)
 #   sohs = cal_xj_battery_soh_data(battery1)
 #   print(sohs)

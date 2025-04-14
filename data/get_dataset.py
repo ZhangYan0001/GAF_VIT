@@ -112,7 +112,7 @@ def get_labels(image_paths: [], SOH_Labels: dict, label_flag: str):
   elif label_flag == "TJ":
     for path in image_paths:
       key = path.split("\\")[-2]
-      idx = int(re.search(r"#(\d+)-\d+\.png", path.split("\\")[-1]).group(1))
+      idx = int(re.search(r"-(\d+)(?=\.\w+$)", path.split("\\")[-1]).group(1))
       label = SOH_Labels[key][idx]
       labels.append(label)
 
@@ -129,7 +129,7 @@ def get_labels(image_paths: [], SOH_Labels: dict, label_flag: str):
 def get_transform():
   transform = transforms.Compose(
     [
-      transforms.Resize((128, 128)),
+      transforms.Resize((224, 224)),
       transforms.ToTensor(),
     ]
   )
@@ -171,7 +171,7 @@ class BatteryDataset(Dataset):
 def get_train_transform():
   return transforms.Compose(
     [
-      transforms.Resize((128, 128)),
+      transforms.Resize((224, 224)),
       transforms.RandomHorizontalFlip(),  # 示例增强
       transforms.RandomRotation(10),
       transforms.ToTensor(),
@@ -185,7 +185,7 @@ def get_train_transform():
 def get_val_transform():
   return transforms.Compose(
     [
-      transforms.Resize((128, 128)),
+      transforms.Resize((224, 224)),
       transforms.ToTensor(),
       # transforms.Normalize(mean=[0.485, 0.456, 0.406],
       #                      std=[0.229, 0.224, 0.225])
@@ -206,7 +206,12 @@ def create_loaders(path, keys, batch_size=32, loader_flag="SE"):
   all_labels = get_labels(
     all_paths, gf.get_soh_labels(keys, loader_flag), label_flag=loader_flag
   )  # 假设gs已定义
+  import json
 
+  # 打开文件，准备写入
+  with open('./all_soh_label_tj_1.json', 'w') as file:
+    json.dump(all_labels, file)
+  
   if loader_flag == "SE":
     train_keys, val_keys, test_keys = train_image_keys, val_image_keys, test_image_keys
   elif loader_flag == "XJ":
@@ -214,6 +219,12 @@ def create_loaders(path, keys, batch_size=32, loader_flag="SE"):
       xj_train_image_keys,
       xj_val_image_keys,
       xj_test_image_keys,
+    )
+  elif loader_flag == "TJ":
+    train_keys, val_keys, test_keys = (
+      tj_train_image_keys,
+      tj_val_image_keys,
+      tj_test_image_keys,
     )
   else:
     print("the flag error, please input ")
@@ -276,21 +287,21 @@ def create_loaders(path, keys, batch_size=32, loader_flag="SE"):
 
 # 使用示例
 if __name__ == "__main__":
-  print(tj_image_keys)
-  print(tj_train_image_keys)
-  print(tj_val_image_keys)
-  print(tj_test_image_keys)
-  # train_loader, val_loader, test_loader = create_loaders(
-  #   xj_image_path, xj_image_keys, loader_flag="XJ"
-  # )
-  # # 验证数据流
-  # for images, labels in train_loader:
-  #   print(f"Train Batch - Images: {images.shape}, Labels: {labels.shape}")
-  #   break
-  #
-  # for images, labels in val_loader:
-  #   print(f"Val Batch - Images: {images.shape}, Labels: {labels.shape}")
-  #   break
+  # print(tj_image_keys)
+  # print(tj_train_image_keys)
+  # print(tj_val_image_keys)
+  # print(tj_test_image_keys)
+  train_loader, val_loader, test_loader = create_loaders(
+    tj_image_path, tj_image_keys, loader_flag="TJ"
+  )
+  # 验证数据流
+  for images, labels in train_loader:
+    print(f"Train Batch - Images: {images.shape}, Labels: {labels.shape}")
+    break
+
+  for images, labels in val_loader:
+    print(f"Val Batch - Images: {images.shape}, Labels: {labels.shape}")
+    break
   # paths = get_images_path(tj_image_path, xj_image_keys, "XJ")
   # labels = get_labels(
   #   paths,
