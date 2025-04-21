@@ -34,7 +34,7 @@ class Battery:
   def __init__(self, path):
     mat = loadmat(path)
     self.data = mat["data"]
-    self.battery_name = path.split("/")[-1].split(".")[0]
+    self.battery_name = path.split("\\")[-1].split(".")[0]
     self.summary = mat["summary"]
     self.cycle_life = self.summary[0][0][8][0][0]
     self.description = self.summary[0][0][9][0]
@@ -151,7 +151,7 @@ class Battery:
     return value
 
   # 如果需要重采样，则取消下面这行注释
-  @interpolate_resample(resample=True, num_points=128)
+  @interpolate_resample(resample=True, num_points=224)
   def get_partial_value(self, cycle, variable, stage=1):
     """
     从cycle中提取出variable的stage阶段的数据

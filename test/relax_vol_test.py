@@ -46,7 +46,7 @@ def draw_rel_voltage_by_cycle():
     fig, ax1 = plt.subplots(figsize=(10,5))
     
     
-    for i in range(2, cycle+1):
+    for i in range(2, cycle):
       vol = bty_d.get_partial_value(i, 2, 2)
       times = list(range(len(vol)))
       vol = savgol_filter(vol, window_length=11, polyorder=4)
@@ -143,6 +143,6 @@ def plt_img_rel():
       plt.show()
 
 if __name__ == "__main__":
-  draw_rel_voltage()
-  # draw_rel_voltage_by_cycle()
+  # draw_rel_voltage()
+  draw_rel_voltage_by_cycle()
   # draw_voltage_current()

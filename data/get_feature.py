@@ -172,7 +172,7 @@ def get_xj_data_file(files_path: {str, list[str]}, batch: str):
     if os.path.isfile(path):
       # idx = path.split("\\")[-1].split(".")[0].split("-")[-1]
       battery = Battery(path)
-      idx = battery.battery_name.split("\\")[-1]
+      idx = battery.battery_name
       mat_datas[idx] = battery
   print(f"the {batch} and have {len(paths)} battery")
   return mat_datas
@@ -182,11 +182,13 @@ def get_xj_battery_data(battery: Battery, stage: int):
   # name = battery.battery_name
   cycle_life = battery.cycle_life
   data_ = []
-  for i, cap in range(1, cycle_life + 1):
+  for i in range(2, cycle_life):
     cap = battery.get_partial_value(i, 4, stage)
     vol = battery.get_partial_value(i, 2, stage)
     cur = battery.get_partial_value(i, 3, stage)
     temp = battery.get_partial_value(i, 6, stage)
+    ch_rel_vol = battery.get_partial_value(i, 2, 2)
+    dch_rel_vol = battery.get_partial_value(i, 2, 4)
     # print(f"the every cycle cap len:{len(cap)}")
     cycle_data = {
       "cycle": i,
@@ -194,6 +196,8 @@ def get_xj_battery_data(battery: Battery, stage: int):
       "voltage": vol,
       "current": cur,
       "temperature": temp,
+      "charge_rel_voltage":ch_rel_vol,
+      "discharge_rel_voltage":dch_rel_vol
     }
     data_.append(cycle_data)
 
@@ -267,9 +271,9 @@ def get_tj_battery_data(battery: TJBattery):
     # cap = battery.get_value(idx, )
     vol = battery.get_value(idx, "Ecell/V")
     cur = battery.get_value(idx, "<I>/mA")
-    rel_vol = battery.get_rel_voltage(idx)
-    ch_rel_vol = [v for v in rel_vol if v > 3.5]
-    dch_rel_vol = [v for v in rel_vol if v < 3.5]
+    rel_vol = np.array(battery.get_rel_voltage(idx))
+    ch_rel_vol = np.array([v for v in rel_vol if v > 3.5])
+    dch_rel_vol = np.array([v for v in rel_vol if v < 3.5])
     cycle_data = {
       "cycle": int(idx),
       "voltage": vol,
