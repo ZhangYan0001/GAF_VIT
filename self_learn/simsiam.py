@@ -51,6 +51,11 @@ class SimSiam(nn.Module):
     return p1, p2, z1, z2
 
   def loss_fn(self, p1, p2, z1, z2):
+    p1 = F.normalize(p1, dim=-1)
+    p2 = F.normalize(p2, dim=-1)
+    z1 = F.normalize(z1, dim=-1)
+    z2 = F.normalize(z2, dim=-1)
+
     loss_1 = -F.cosine_similarity(p1, z2.detach(), dim=-1)
     loss_2 = -F.cosine_similarity(p2, z1.detach(), dim=-1)
 
@@ -60,7 +65,7 @@ class SimSiam(nn.Module):
 
 
 config = {
-  "datasets_path":"D:/1New/Coding/GAF_VIT/xj_datasets",
+  "datasets_path":"/home/zy/xj_datasets",
   "batch_size": 32,
   "device": "cuda" if torch.cuda.is_available() else "cpu",
   "epochs": 10,

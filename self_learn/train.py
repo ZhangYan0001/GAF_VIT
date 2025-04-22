@@ -117,20 +117,28 @@ class SimSiam(nn.Module):
     return p1, p2, z1, z2
 
   def loss_fn(self, p1, p2, z1, z2):
+    p1 = F.normalize(p1, dim=-1)
+    p2 = F.normalize(p2, dim=-1)
+    z1 = F.normalize(z1, dim=-1)
+    z2 = F.normalize(z2, dim=-1)
+
     loss_1 = -F.cosine_similarity(p1, z2.detach(), dim=-1)
     loss_2 = -F.cosine_similarity(p2, z1.detach(), dim=-1)
 
     loss = (loss_1 + loss_2).mean()
+    # print("loss_1 min/max:", loss_1.min().item(), loss_1.max().item())
+    # print("loss_2 min/max:", loss_2.min().item(), loss_2.max().item())
+    # print("loss total:", loss.item())
 
     return loss
 
 
 config = {
-  "datasets_path": "/home/zy/xj_datasets",
+  "datasets_path": "/home/shunlizhang/zy/tj_datasets1",
   "batch_size": 32,
   "device": "cuda" if torch.cuda.is_available() else "cpu",
-  "epochs": 10,
-  "lr": 0.05,
+  "epochs": 30,
+  "lr": 0.0001,
   "weight_decay": 1e-4,
   "momentum": 0.9,
   "feature_dim": 2048,
@@ -144,7 +152,7 @@ def train_simsiam(model, data_loader, optimizer, device):
   total_loss = 0.0
 
   with tqdm(data_loader, desc="Training", unit="batch") as tepoch:
-    for data in data_loader:
+    for data in tepoch:
       view1, view2 = data
       view1, view2 = view1.to(device), view2.to(device)
 
@@ -171,15 +179,13 @@ def data_loader(batch_size=32, image_size=224, npy_files=None):
   files_list = [npy_files + "/" + path for path in os.listdir(npy_files)]
   datasets = []
   for file in files_list:
-    import numpy as np
-
     data = np.load(file)
     dataset = GAF3SimSiamDataset(data)
     datasets.append(dataset)
 
   combined_dataset = ConcatDataset(datasets)
   loader = DataLoader(
-    combined_dataset, batch_size=batch_size, shuffle=True, num_workers=0
+    combined_dataset, batch_size=batch_size, shuffle=True, num_workers=4
   )
   return loader
 
@@ -224,7 +230,7 @@ def train():
           "epoch": epoch,
           "loss": avg_loss,
         },
-        "./best_model.pth",
+        "./best_model4.pth",
       )
 
 
