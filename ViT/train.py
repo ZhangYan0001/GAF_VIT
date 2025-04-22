@@ -71,6 +71,7 @@ def train():
       train_loss += loss.item() * images.size(0)
       progress_bar.set_postfix({"loss" : loss.item()})
 
+    
     model.eval()
     val_loss = 0.0
     all_outputs = []

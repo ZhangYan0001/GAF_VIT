@@ -11,7 +11,7 @@ from typing import Union
 import data.get_feature as gf
 from sklearn.preprocessing import MinMaxScaler
 from pyts.image import GramianAngularField
-import data.data_enhavence as de
+# import data.data_enhavence as de
 
 
 def gaf(data):
@@ -42,11 +42,11 @@ def fusion(data1, data2, data3):
   return fusion_data
 
 
-def three_channels_fusion(battery:Union[Battery, TJBattery], stage: int = 1):
+def three_channels_fusion(battery:Union[Battery, TJBattery], stage: int = 1, batch = ""):
   bdata_ = None
   fusion_datas = []
   print(battery.battery_name)
-  output_path = r"D:\1New\Coding\GAF_VIT\fusion_images"+'\\'+f"{battery.battery_name}"
+  output_path = r"D:\1New\Coding\GAF_VIT\fusion_images"+'\\'+batch+'\\'+f"{battery.battery_name}"
   if not os.path.exists(output_path):
       try:
         os.makedirs(output_path, exist_ok=True)
@@ -67,24 +67,29 @@ def three_channels_fusion(battery:Union[Battery, TJBattery], stage: int = 1):
     vol = cycle_data["voltage"]
     cur = cycle_data["current"]
     rel_vol = cycle_data["charge_rel_voltage"]
+    
+    if len(rel_vol) < 2:
+      continue
+    
     if isinstance(battery, TJBattery):
       vol, cur, rel_vol = gf.resample(vol,224),gf.resample(cur, 224), gf.resample(rel_vol,224)
     
     vol_, cur_, rel_vol_= gaf(vol), gaf(cur), gaf(rel_vol)
     fusion_data = fusion(vol_, cur_, rel_vol_)
-    augmentor = de.SimSiamGAF3Augmentor()
-    augmented_fusion_data = augmentor(fusion_data)
-    augmented_fusion_data = augmented_fusion_data.permute(1, 2, 0)
-    fusion_datas.append(augmented_fusion_data)
+    # augmentor = de.SimSiamGAF3Augmentor()
+    # augmented_fusion_data = augmentor(fusion_data)
+    # augmented_fusion_data = augmented_fusion_data.permute(1, 2, 0)
+    # fusion_datas.append(augmented_fusion_data)
+    fusion_datas.append(fusion_data)
     
     
     plt.xticks([])
     plt.yticks([])
     plt.axis("off")
     plt.tight_layout()
-    plt.imshow(augmented_fusion_data)
+    plt.imshow(fusion_data)
     # plt.show()
-    plt.savefig(output_path +f"/{cycle_data['cycle']}"+".png",bbox_inches ="tight", pad_inches=0)
+    plt.savefig(output_path + f"\\{battery.battery_name}" + f"-{cycle_data['cycle']}.png",bbox_inches ="tight", pad_inches=0)
     plt.close()
     
   return fusion_datas
@@ -95,20 +100,20 @@ the test code
 """
 
 # if __name__ == "__main__":
-# if __name__ == "__main__":
-#   for batch in gf.tj_batches_arr:
-#     tj_datas_1 = gf.get_tj_all_datas(batch)
-#     for _ , battery in tj_datas_1.items():
-#       three_channels_fusion(battery)
-#       break
-#     break
-#
-#   for batch in gf.batches_arr:
-#     xj_datas_1 = gf.get_xj_batch_data(batch)
-#     for _, battery in xj_datas_1.items():
-#       three_channels_fusion(battery=battery)
-#       break
-#     break
+if __name__ == "__main__":
+  for batch in gf.tj_batches_arr:
+    tj_datas_1 = gf.get_tj_all_datas(batch)
+    for _ , battery in tj_datas_1.items():
+      three_channels_fusion(battery,batch=batch)
+      # break
+    break
+
+  for batch in gf.batches_arr:
+    xj_datas_1 = gf.get_xj_batch_data(batch)
+    for _, battery in xj_datas_1.items():
+      three_channels_fusion(battery=battery, batch = batch)
+      # break
+    break
   
   #   # print(
   #   #   "this is files path ",

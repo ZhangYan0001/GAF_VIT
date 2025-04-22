@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.signal import savgol_filter
 import matplotlib.cm as cm
+from scipy.stats import spearmanr
 
 batch1_data = get_xj_batch_data("Batch-1")
 
@@ -20,19 +21,28 @@ def draw_rel_voltage():
     
     vol_charge_l = []
     for i in range(2, cycle):
-      rel_voltage_charge = bty_d.get_original_partial_value(i, 2, 4)
-      mean_rel_vol = np.mean(rel_voltage_charge)
+      rel_voltage_charge = bty_d.get_original_partial_value(i, 2, 2)
+      # mean_rel_vol = np.mean(rel_voltage_charge)
+      mean_rel_vol = np.median(rel_voltage_charge)
       vol_charge_l.append(mean_rel_vol)
     
-    x_ = np.array(vol_charge_l)
+    smooth_vol_charge_l = savgol_filter(vol_charge_l, window_length=11, polyorder=3)
+    x_ = np.array(smooth_vol_charge_l)
     y_ = np.array(list(cal_xj_battery_soh_data(bty_d).values())[1:-1])
 
     r_ = np.corrcoef(x_, y_)[0,1]
+    s_r_ , s_p_ = spearmanr(x_.tolist(), y_.tolist())
     print(f"Pearson 相关性系数 r = {r_:.3f}")
-    plt.plot(vol_charge_l)
+    print(f"Spearmanr 相关性系数 r = {s_r_:.3f}, P value = {s_p_:.3f}")
+    plt.plot(smooth_vol_charge_l, label=f"Battery {bty_i}")
     # plt.ylim(4.15,4.20)
-    plt.legend()
-    plt.show()
+  
+  plt.title("Relaxation Voltage Curves for Different Batteries")
+  plt.xlabel("Cycle Index")
+  plt.ylabel("median Relaxation Voltage(V)")
+  plt.legend()
+  plt.grid(True)
+  plt.show()
     
 def draw_rel_voltage_by_cycle():
   for _, bty_d in batch1_data.items():
@@ -143,6 +153,6 @@ def plt_img_rel():
       plt.show()
 
 if __name__ == "__main__":
-  # draw_rel_voltage()
-  draw_rel_voltage_by_cycle()
+  draw_rel_voltage()
+  # draw_rel_voltage_by_cycle()
   # draw_voltage_current()

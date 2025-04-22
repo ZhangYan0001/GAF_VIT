@@ -11,6 +11,7 @@ from torch.utils.data import ConcatDataset
 import os
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
+import data.get_dataset as dg
 
 
 def simsiam_augment(img, image_size=224):
@@ -121,7 +122,6 @@ class SimSiam(nn.Module):
     p2 = F.normalize(p2, dim=-1)
     z1 = F.normalize(z1, dim=-1)
     z2 = F.normalize(z2, dim=-1)
-
     loss_1 = -F.cosine_similarity(p1, z2.detach(), dim=-1)
     loss_2 = -F.cosine_similarity(p2, z1.detach(), dim=-1)
 
@@ -134,7 +134,8 @@ class SimSiam(nn.Module):
 
 
 config = {
-  "datasets_path": "/home/shunlizhang/zy/tj_datasets1",
+  # "datasets_path": "/home/shunlizhang/zy/tj_datasets1",
+  "datasets_path": "/home/shunlizhang/zy/xj_datasets",
   "batch_size": 32,
   "device": "cuda" if torch.cuda.is_available() else "cpu",
   "epochs": 30,
@@ -164,9 +165,6 @@ def train_simsiam(model, data_loader, optimizer, device):
       loss.backward()
       torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
       optimizer.step()
-
-      # loss.backward()
-      # optimizer.setp()
 
       total_loss += loss.item()
       tepoch.set_postfix(loss=loss.item())
@@ -232,6 +230,123 @@ def train():
         },
         "./best_model4.pth",
       )
+
+
+"""
+  SOH model prediction 
+"""
+
+
+def encoder_fine_tuning(model_path: str, encoder):
+  checkpoint = torch.load(model_path)
+  encoder.load_state_dict(checkpoint["encoder"])
+  return encoder
+
+
+class SOHPredictionModel(nn.Module):
+  def __init__(self, encoder):
+    super(SOHPredictionModel, self).__init__()
+    self.encoder = encoder
+    self.fc = nn.Linear(config["feature_dim"], 1)
+
+  def forward(self, x):
+    _, features = self.encoder
+    soh_pred = self.fc(features)
+    return soh_pred
+
+
+def train_soh_model(model, train_loader, optimizer, loss_fn, device):
+  model.train()
+  total_loss = 0.0
+  with tqdm(train_loader, desc="Training SOH", unit="batch") as tepoch:
+    for data in tepoch:
+      img, soh = data
+      img, soh = img.to(device), soh.to(device)
+
+      optimizer.zero_grad()
+
+      predictions = model(img).squeeze()
+      loss = loss_fn(predictions, soh)
+      loss.backward()
+      optimizer.step()
+
+      total_loss += loss.item()
+      tepoch.set_postfix(loss=loss.item())
+
+  return total_loss / len(train_loader)
+
+
+def evaluate_soh_model(model, val_loader, loss_fn, device):
+  model.eval()
+  total_loss = 0.0
+  with torch.no_grad():
+    for data in val_loader:
+      img, soh = data
+      img, soh = img.to(device), soh.to(device)
+
+      predictions = model(img).squeeze()
+      loss = loss_fn(predictions, soh)
+
+      total_loss += loss.item()
+
+  return total_loss / len(val_loader)
+
+
+def train_soh(train_loader, val_loader):
+  config = {
+    "datasets_path": "./",
+    "batch_size": 32,
+    "device": "cuda" if torch.cuda.is_available() else "cpu",
+    "epochs": 10,
+    "lr": 0.001,
+    "weight_decay": 1e-4,
+    "momentum": 0.9,
+    "feature_dim": 2048,
+    "projection_dim": 2048,
+    "base_model": "vit_base_patch16_224",
+    "pretrained_model": "./best_model2.pth",
+  }
+
+  encoder = SimSiamEncoder(base_model=config["base_model"]).to(config["device"])
+  encoder = encoder_fine_tuning(config["pretrained_model"], encoder)
+
+  for param in encoder.parameters():
+    param.requires_grad = False
+
+  model = SOHPredictionModel(encoder).to(config["device"])
+
+  optimizer = optim.Adam(
+    model.parameters(),
+    lr=config["lr"],
+    weight_decay=config["weight_decay"],
+  )
+  loss_fn = nn.MSELoss()
+
+  best_loss = float("inf")
+  for epoch in range(config["epochs"]):
+    train_loss = train_soh_model(
+      model, train_loader, optimizer, loss_fn, config["device"]
+    )
+    val_loss = evaluate_soh_model(model, val_loader, loss_fn, config["device"])
+    print(
+      f"Epoch [{epoch + 1}/{config['device']} | Train Loss : {train_loss:.4f} | Val Loss {val_loss:.4f}"
+    )
+    if val_loss < best_loss:
+      best_loss = val_loss
+      torch.save(model.state_dict(), "./best_soh_model.pth")
+
+
+def predict_soh(model, test_loader, device):
+  model.eval()
+  predictions = []
+  with torch.no_grad():
+    for data in test_loader:
+      img, _ = data
+      img = img.to(device)
+      pred = model(img).squeeze().cpu().numpy()
+      predictions.append(pred)
+
+  return np.concatenate(predictions)
 
 
 if __name__ == "__main__":
