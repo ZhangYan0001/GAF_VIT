@@ -14,6 +14,7 @@ from PIL import Image
 import data.get_dataset as dg
 from sklearn.metrics import mean_squared_error, r2_score
 
+
 def simsiam_augment(img, image_size=224):
   base_transform = T.Compose(
     [
@@ -134,7 +135,6 @@ class SimSiam(nn.Module):
 
 
 config = {
-  # "datasets_path": "/home/shunlizhang/zy/tj_datasets1",
   "datasets_path": "/home/shunlizhang/zy/xj_datasets",
   "batch_size": 32,
   "device": "cuda" if torch.cuda.is_available() else "cpu",
@@ -346,12 +346,35 @@ def predict_soh(model, test_loader, device):
       img, label = img.to(device), label.to(device)
       pred = model(img).squeeze().cpu().numpy()
       predictions.append(pred)
-      true_labels.append(label.cpu().numpy)
+      true_labels.append(label.cpu().numpy())
 
   predictions = np.concatenate(predictions)
   true_labels = np.concatenate(true_labels)
+
   return predictions, true_labels
 
+def evaluate_soh(predictions, true_labels):
+  mse = mean_squared_error(true_labels, predictions)
+  print(f"Mean Squared Error(MSE): {mse:.4f}")
+
+  r2 = r2_score(true_labels, predictions)
+  print(f"R2 Score: {r2:.4f}")
+
+  return mse, r2
+
+
+def load_model(model_path, device):
+  encoder = SimSiamEncoder(
+    base_model=config["base_model"],
+    projection_dim=config["projection_dim"],
+    feature_dim=config["feature_dim"],
+  ).to(device)
+  model = SimSiam(encoder).to(device)
+
+  checkpoint = torch.load(model_path, map_location=device)
+  model.load_state_dict(checkpoint["model_state_dict"])
+
+  return model
 
 def evaluate_soh(predictions, true_labels):
   mse = mean_squared_error(true_labels, predictions)
@@ -368,5 +391,6 @@ if __name__ == "__main__":
     xj_path, dg.xj_image_keys, loader_flag="XJ"
   )
   # train_soh(train_loader, val_loader)
-  # model =
-  # predict_soh()
+  model = load_model("", config["device"])
+  predictions, true_labels = predict_soh(model, test_loader, config["device"])
+  mse, r2 = evaluate_soh(predictions, true_labels)
