@@ -13,6 +13,11 @@ from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 import data.get_dataset as dg
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from ViT.model import ViTBackbone
+
+"""
+  self learning simsiam model
+"""
 
 
 def simsiam_augment(img, image_size=224):
@@ -78,12 +83,16 @@ class GAF3SimSiamDataset(torch.utils.data.Dataset):
 class SimSiamEncoder(nn.Module):
   def __init__(
     self,
-    base_model="vit_base_patch16_224",
+    base_model="vit_base_patch16_224" or None,
     projection_dim=1024,
     feature_dim=1024,
   ):
     super(SimSiamEncoder, self).__init__()
-    self.encoder = timm.create_model(base_model, pretrained=True, num_classes=0)
+    if base_model is None:
+      self.encoder = ViTBackbone()
+    else:
+      self.encoder = timm.create_model(base_model, pretrained=True, num_classes=0)
+      
     out_dim = self.encoder.num_features
 
     self.projection_head = nn.Sequential(
@@ -139,7 +148,7 @@ config = {
   "batch_size": 32,
   "device": "cuda" if torch.cuda.is_available() else "cpu",
   "epochs": 30,
-  "lr": 0.0001,
+  "lr": 0.00625,
   "weight_decay": 1e-4,
   "momentum": 0.9,
   "feature_dim": 1024,
@@ -190,7 +199,7 @@ def data_loader(batch_size=32, image_size=224, npy_files=None):
 
 def train():
   encoder = SimSiamEncoder(
-    base_model=config["base_model"],
+    base_model=None,
     projection_dim=config["projection_dim"],
     feature_dim=config["feature_dim"],
   ).to(device=config["device"])
@@ -307,7 +316,11 @@ def train_soh(train_loader, val_loader):
     "pretrained_model": "./best_model2.pth",
   }
 
-  encoder = SimSiamEncoder(feature_dim=1024,projection_dim=config["projection_dim"],base_model=config["base_model"]).to(config["device"])
+  encoder = SimSiamEncoder(
+    feature_dim=config["feature_dim"],
+    projection_dim=config["projection_dim"],
+    base_model=config["base_model"],
+  ).to(config["device"])
   encoder = encoder_fine_tuning(config["pretrained_model"], encoder)
 
   for param in encoder.parameters():
@@ -353,6 +366,7 @@ def predict_soh(model, test_loader, device):
 
   return predictions, true_labels
 
+
 def evaluate_soh(predictions, true_labels):
   mse = mean_squared_error(true_labels, predictions)
   rmse = np.sqrt(mse)
@@ -362,7 +376,9 @@ def evaluate_soh(predictions, true_labels):
   true_labels = np.array(true_labels)
   predictions = np.array(predictions)
   mask = true_labels != 0
-  mape = np.mean(np.abs((true_labels[mask] - predictions[mask]) / true_labels[mask])) * 100
+  mape = (
+    np.mean(np.abs((true_labels[mask] - predictions[mask]) / true_labels[mask])) * 100
+  )
 
   r2 = r2_score(true_labels, predictions)
 
@@ -372,13 +388,7 @@ def evaluate_soh(predictions, true_labels):
   print(f"Mean Absolute Percentage Error (MAPE): {mape:.2f}%")
   print(f"R² Score:                        {r2:.4f}")
 
-  return {
-    "MSE": mse,
-    "RMSE": rmse,
-    "MAE": mae,
-    "MAPE": mape,
-    "R2": r2
-  }
+  return {"MSE": mse, "RMSE": rmse, "MAE": mae, "MAPE": mape, "R2": r2}
 
 
 def load_model(model_path, device):
@@ -398,10 +408,13 @@ def load_model(model_path, device):
 
 import matplotlib.pyplot as plt
 
-def plot_soh_predictions(predictions, true_labels, title="SOH Prediction vs True Value"):
+
+def plot_soh_predictions(
+  predictions, true_labels, title="SOH Prediction vs True Value"
+):
   plt.figure(figsize=(6, 6))
-  plt.scatter(true_labels, predictions, alpha=0.7, edgecolors='k', label="Predictions")
-  plt.plot([0, 1], [0, 1], 'r--', label="Ideal (y = x)")
+  plt.scatter(true_labels, predictions, alpha=0.7, edgecolors="k", label="Predictions")
+  plt.plot([0, 1], [0, 1], "r--", label="Ideal (y = x)")
 
   plt.xlabel("True SOH")
   plt.ylabel("Predicted SOH")
@@ -410,7 +423,7 @@ def plot_soh_predictions(predictions, true_labels, title="SOH Prediction vs True
   plt.grid(True)
   plt.xlim(0.8, 1)
   plt.ylim(0.8, 1)
-  plt.gca().set_aspect('equal', adjustable='box')
+  plt.gca().set_aspect("equal", adjustable="box")
   plt.tight_layout()
   plt.show()
 
@@ -422,7 +435,9 @@ if __name__ == "__main__":
     xj_path, dg.xj_image_keys, loader_flag="XJ"
   )
   # train_soh(train_loader, val_loader)
-  model = load_model("/home/shunlizhang/zy/gaf_-vit/self_learn/best_soh_model.pth", config["device"])
+  model = load_model(
+    "/home/shunlizhang/zy/gaf_-vit/self_learn/best_soh_model.pth", config["device"]
+  )
   predictions, true_labels = predict_soh(model, test_loader, config["device"])
   evaluate_soh(predictions, true_labels)
   plot_soh_predictions(predictions, true_labels)
