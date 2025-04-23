@@ -12,7 +12,7 @@ import os
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 import data.get_dataset as dg
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 
 def simsiam_augment(img, image_size=224):
@@ -298,7 +298,7 @@ def train_soh(train_loader, val_loader):
     "batch_size": 32,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "epochs": 100,
-    "lr": 0.001,
+    "lr": 0.0001,
     "weight_decay": 1e-4,
     "momentum": 0.9,
     "feature_dim": 1024,
@@ -333,7 +333,7 @@ def train_soh(train_loader, val_loader):
     )
     if val_loss < best_loss:
       best_loss = val_loss
-      torch.save(model.state_dict(), "./best_soh_model.pth")
+      torch.save(model.state_dict(), "./best_soh_model2.pth")
 
 
 def predict_soh(model, test_loader, device):
@@ -355,12 +355,30 @@ def predict_soh(model, test_loader, device):
 
 def evaluate_soh(predictions, true_labels):
   mse = mean_squared_error(true_labels, predictions)
-  print(f"Mean Squared Error(MSE): {mse:.4f}")
+  rmse = np.sqrt(mse)
+  mae = mean_absolute_error(true_labels, predictions)
+
+  # 避免除以0
+  true_labels = np.array(true_labels)
+  predictions = np.array(predictions)
+  mask = true_labels != 0
+  mape = np.mean(np.abs((true_labels[mask] - predictions[mask]) / true_labels[mask])) * 100
 
   r2 = r2_score(true_labels, predictions)
-  print(f"R2 Score: {r2:.4f}")
 
-  return mse, r2
+  print(f"Mean Squared Error (MSE):       {mse:.4f}")
+  print(f"Root Mean Squared Error (RMSE): {rmse:.4f}")
+  print(f"Mean Absolute Error (MAE):      {mae:.4f}")
+  print(f"Mean Absolute Percentage Error (MAPE): {mape:.2f}%")
+  print(f"R² Score:                        {r2:.4f}")
+
+  return {
+    "MSE": mse,
+    "RMSE": rmse,
+    "MAE": mae,
+    "MAPE": mape,
+    "R2": r2
+  }
 
 
 def load_model(model_path, device):
@@ -369,20 +387,33 @@ def load_model(model_path, device):
     projection_dim=config["projection_dim"],
     feature_dim=config["feature_dim"],
   ).to(device)
-  model = SimSiam(encoder).to(device)
+  model = SOHPredictionModel(encoder).to(device)
 
   checkpoint = torch.load(model_path, map_location=device)
-  model.load_state_dict(checkpoint["model_state_dict"])
+  model.load_state_dict(checkpoint)
+  model.eval()
 
   return model
 
-def evaluate_soh(predictions, true_labels):
-  mse = mean_squared_error(true_labels, predictions)
-  print(f"Mean Squared Error (MSE): {mse:.4f}")
-  r2 = r2_score(true_labels, predictions)
-  print(f"R² Score: {r2:.4f}")
 
-  return mse, r2
+import matplotlib.pyplot as plt
+
+def plot_soh_predictions(predictions, true_labels, title="SOH Prediction vs True Value"):
+  plt.figure(figsize=(6, 6))
+  plt.scatter(true_labels, predictions, alpha=0.7, edgecolors='k', label="Predictions")
+  plt.plot([0, 1], [0, 1], 'r--', label="Ideal (y = x)")
+
+  plt.xlabel("True SOH")
+  plt.ylabel("Predicted SOH")
+  plt.title(title)
+  plt.legend()
+  plt.grid(True)
+  plt.xlim(0.8, 1)
+  plt.ylim(0.8, 1)
+  plt.gca().set_aspect('equal', adjustable='box')
+  plt.tight_layout()
+  plt.show()
+
 
 if __name__ == "__main__":
   # train()
@@ -391,6 +422,7 @@ if __name__ == "__main__":
     xj_path, dg.xj_image_keys, loader_flag="XJ"
   )
   # train_soh(train_loader, val_loader)
-  model = load_model("", config["device"])
+  model = load_model("/home/shunlizhang/zy/gaf_-vit/self_learn/best_soh_model.pth", config["device"])
   predictions, true_labels = predict_soh(model, test_loader, config["device"])
-  mse, r2 = evaluate_soh(predictions, true_labels)
+  evaluate_soh(predictions, true_labels)
+  plot_soh_predictions(predictions, true_labels)
