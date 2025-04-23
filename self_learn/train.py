@@ -12,7 +12,7 @@ import os
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 import data.get_dataset as dg
-
+from sklearn.metrics import mean_squared_error, r2_score
 
 def simsiam_augment(img, image_size=224):
   base_transform = T.Compose(
@@ -78,8 +78,8 @@ class SimSiamEncoder(nn.Module):
   def __init__(
     self,
     base_model="vit_base_patch16_224",
-    projection_dim=2048,
-    feature_dim=2048,
+    projection_dim=1024,
+    feature_dim=1024,
   ):
     super(SimSiamEncoder, self).__init__()
     self.encoder = timm.create_model(base_model, pretrained=True, num_classes=0)
@@ -142,8 +142,8 @@ config = {
   "lr": 0.0001,
   "weight_decay": 1e-4,
   "momentum": 0.9,
-  "feature_dim": 2048,
-  "projection_dim": 2048,
+  "feature_dim": 1024,
+  "projection_dim": 1024,
   "base_model": "vit_base_patch16_224",
 }
 
@@ -250,8 +250,8 @@ class SOHPredictionModel(nn.Module):
     self.fc = nn.Linear(config["feature_dim"], 1)
 
   def forward(self, x):
-    _, features = self.encoder
-    soh_pred = self.fc(features)
+    z, _ = self.encoder(x)
+    soh_pred = self.fc(z)
     return soh_pred
 
 
@@ -294,20 +294,20 @@ def evaluate_soh_model(model, val_loader, loss_fn, device):
 
 def train_soh(train_loader, val_loader):
   config = {
-    "datasets_path": "./",
+    "datasets_path": "/home/shunlizhang/zy/xj_datasets",
     "batch_size": 32,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "epochs": 10,
+    "epochs": 100,
     "lr": 0.001,
     "weight_decay": 1e-4,
     "momentum": 0.9,
-    "feature_dim": 2048,
-    "projection_dim": 2048,
+    "feature_dim": 1024,
+    "projection_dim": 1024,
     "base_model": "vit_base_patch16_224",
     "pretrained_model": "./best_model2.pth",
   }
 
-  encoder = SimSiamEncoder(base_model=config["base_model"]).to(config["device"])
+  encoder = SimSiamEncoder(feature_dim=1024,projection_dim=config["projection_dim"],base_model=config["base_model"]).to(config["device"])
   encoder = encoder_fine_tuning(config["pretrained_model"], encoder)
 
   for param in encoder.parameters():
@@ -339,15 +339,34 @@ def train_soh(train_loader, val_loader):
 def predict_soh(model, test_loader, device):
   model.eval()
   predictions = []
+  true_labels = []
   with torch.no_grad():
     for data in test_loader:
-      img, _ = data
-      img = img.to(device)
+      img, label = data
+      img, label = img.to(device), label.to(device)
       pred = model(img).squeeze().cpu().numpy()
       predictions.append(pred)
+      true_labels.append(label.cpu().numpy)
 
-  return np.concatenate(predictions)
+  predictions = np.concatenate(predictions)
+  true_labels = np.concatenate(true_labels)
+  return predictions, true_labels
 
+
+def evaluate_soh(predictions, true_labels):
+  mse = mean_squared_error(true_labels, predictions)
+  print(f"Mean Squared Error (MSE): {mse:.4f}")
+  r2 = r2_score(true_labels, predictions)
+  print(f"R² Score: {r2:.4f}")
+
+  return mse, r2
 
 if __name__ == "__main__":
-  train()
+  # train()
+  xj_path = "/home/shunlizhang/zy/Batch-1"
+  train_loader, val_loader, test_loader = dg.create_loaders(
+    xj_path, dg.xj_image_keys, loader_flag="XJ"
+  )
+  # train_soh(train_loader, val_loader)
+  # model =
+  # predict_soh()
