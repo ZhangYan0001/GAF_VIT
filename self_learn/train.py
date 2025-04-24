@@ -254,6 +254,16 @@ class SOHPredictionModel(nn.Module):
     soh_pred = self.fc(z)
     return soh_pred
 
+def unfreeze_encoder_layers(encoder, num_layers_to_unfreeze):
+    for name, param in encoder.named_parameters():
+        if "blocks" in name:
+            layer_num = int(name.split("blocks.")[1].split(".")[0])
+            if layer_num >= (12 - num_layers_to_unfreeze):
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
+        else:
+            param.requires_grad = False
 
 def train_soh_model(model, train_loader, optimizer, loss_fn, device):
   model.train()
@@ -291,23 +301,27 @@ def evaluate_soh_model(model, val_loader, loss_fn, device):
 
   return total_loss / len(val_loader)
 
+def get_vit_layers(encoder):
+    return list(encoder.encoder.blocks)
 
 def train_soh(train_loader, val_loader):
   config = {
     "datasets_path": "/home/shunlizhang/zy/xj_datasets",
     "batch_size": 32,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "epochs": 100,
-    "lr": 0.0001,
+    "epochs": 200,
+    "lr": 0.00001,
     "weight_decay": 1e-4,
     "momentum": 0.9,
     "feature_dim": 1024,
     "projection_dim": 1024,
     "base_model": "vit_base_patch16_224",
     "pretrained_model": "./best_model2.pth",
+    "save_model":"./best_soh_model3.pth",
+    "unfreeze_interval":50,
   }
 
-  encoder = SimSiamEncoder(feature_dim=1024,projection_dim=config["projection_dim"],base_model=config["base_model"]).to(config["device"])
+  encoder = SimSiamEncoder(feature_dim=config["feature_dim"],projection_dim=config["projection_dim"],base_model=config["base_model"]).to(config["device"])
   encoder = encoder_fine_tuning(config["pretrained_model"], encoder)
 
   for param in encoder.parameters():
@@ -315,25 +329,43 @@ def train_soh(train_loader, val_loader):
 
   model = SOHPredictionModel(encoder).to(config["device"])
 
-  optimizer = optim.Adam(
+  optimizer = optim.AdamW(
     model.parameters(),
     lr=config["lr"],
     weight_decay=config["weight_decay"],
   )
   loss_fn = nn.MSELoss()
 
+  vit_layers = get_vit_layers(encoder)
+  total_layers = len(vit_layers)
   best_loss = float("inf")
+
   for epoch in range(config["epochs"]):
+    # num_layer_to_unfreeze = epoch // config["unfreeze_every"]
+    # unfreeze_encoder_layers(encoder.encoder, num_layer_to_unfreeze)
+    if epoch % config["unfreeze_interval"] == 0:
+        unfreeze_idx = epoch // config["unfreeze_interval"]
+        if unfreeze_idx < total_layers:
+            print(f"Epoch {epoch}: 解冻第 {unfreeze_idx} 层 Transformer")
+            for param in vit_layers[total_layers - 1 - unfreeze_idx].parameters():
+                param.requires_grad = True
+
+            optimizer = optim.AdamW(
+                filter(lambda p: p.requires_grad, model.parameters()),
+                lr=config["lr"],
+                weight_decay=config["weight_decay"]
+            )
+
     train_loss = train_soh_model(
       model, train_loader, optimizer, loss_fn, config["device"]
     )
     val_loss = evaluate_soh_model(model, val_loader, loss_fn, config["device"])
     print(
-      f"Epoch [{epoch + 1}/{config['device']} | Train Loss : {train_loss:.4f} | Val Loss {val_loss:.4f}"
+      f"Epoch [{epoch + 1}/{config['epochs']} | Train Loss : {train_loss:.4f} | Val Loss {val_loss:.4f}"
     )
     if val_loss < best_loss:
       best_loss = val_loss
-      torch.save(model.state_dict(), "./best_soh_model2.pth")
+      torch.save(model.state_dict(), config["save_model"])
 
 
 def predict_soh(model, test_loader, device):
@@ -408,8 +440,8 @@ def plot_soh_predictions(predictions, true_labels, title="SOH Prediction vs True
   plt.title(title)
   plt.legend()
   plt.grid(True)
-  plt.xlim(0.8, 1)
-  plt.ylim(0.8, 1)
+  plt.xlim(0.75, 1)
+  plt.ylim(0.75, 1)
   plt.gca().set_aspect('equal', adjustable='box')
   plt.tight_layout()
   plt.show()
@@ -419,10 +451,10 @@ if __name__ == "__main__":
   # train()
   xj_path = "/home/shunlizhang/zy/Batch-1"
   train_loader, val_loader, test_loader = dg.create_loaders(
-    xj_path, dg.xj_image_keys, loader_flag="XJ"
+    xj_path, dg.xj_image_keys, loader_flag="XJ",batch_size=32
   )
   # train_soh(train_loader, val_loader)
-  model = load_model("/home/shunlizhang/zy/gaf_-vit/self_learn/best_soh_model.pth", config["device"])
+  model = load_model("/home/shunlizhang/zy/gaf_-vit/self_learn/best_soh_model3.pth", config["device"])
   predictions, true_labels = predict_soh(model, test_loader, config["device"])
   evaluate_soh(predictions, true_labels)
   plot_soh_predictions(predictions, true_labels)
