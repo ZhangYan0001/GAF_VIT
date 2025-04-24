@@ -328,6 +328,7 @@ class ViTBackbone(nn.Module):
       drop_rate=0.1,
       attn_drop_rate=0.1,
     )
+    self.num_features = self.vit.num_features
   
   def forward(self, x):
     return self.vit.forward_features(x)

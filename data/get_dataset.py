@@ -175,9 +175,9 @@ def get_train_transform():
       transforms.RandomHorizontalFlip(),  # 示例增强
       transforms.RandomRotation(10),
       transforms.ToTensor(),
-      # transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet标准参数
-      #                      std=[0.229, 0.224, 0.225])
-      transforms.Normalize(mean=0.45, std=0.2),
+      transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet标准参数
+                           std=[0.229, 0.224, 0.225])
+      # transforms.Normalize(mean=0.45, std=0.2),
     ]
   )
 
@@ -187,9 +187,9 @@ def get_val_transform():
     [
       transforms.Resize((224, 224)),
       transforms.ToTensor(),
-      # transforms.Normalize(mean=[0.485, 0.456, 0.406],
-      #                      std=[0.229, 0.224, 0.225])
-      transforms.Normalize(mean=0.45, std=0.2),
+      transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                           std=[0.229, 0.224, 0.225])
+      # transforms.Normalize(mean=0.45, std=0.2),
     ]
   )
 

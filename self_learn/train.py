@@ -83,17 +83,18 @@ class GAF3SimSiamDataset(torch.utils.data.Dataset):
 class SimSiamEncoder(nn.Module):
   def __init__(
     self,
-    base_model="vit_base_patch16_224" or None,
+    backbone: nn.Module,
+    # base_model="vit_base_patch16_224" or None,
     projection_dim=1024,
     feature_dim=1024,
   ):
     super(SimSiamEncoder, self).__init__()
-    if base_model is None:
-      self.encoder = ViTBackbone()
-    else:
-      self.encoder = timm.create_model(base_model, pretrained=True, num_classes=0)
-      
-    out_dim = self.encoder.num_features
+    # if base_model is None:
+    #   self.encoder = ViTBackbone()
+    # else:
+    #   self.encoder = timm.create_model(base_model, pretrained=True, num_classes=0)
+    self.encoder = backbone
+    out_dim = backbone.num_features
 
     self.projection_head = nn.Sequential(
       nn.Linear(out_dim, projection_dim),
@@ -147,13 +148,13 @@ config = {
   "datasets_path": "/home/shunlizhang/zy/xj_datasets",
   "batch_size": 32,
   "device": "cuda" if torch.cuda.is_available() else "cpu",
-  "epochs": 30,
+  "epochs": 80,
   "lr": 0.00625,
   "weight_decay": 1e-4,
   "momentum": 0.9,
-  "feature_dim": 1024,
+  "feature_dim": 768,
   "projection_dim": 1024,
-  "base_model": "vit_base_patch16_224",
+  # "base_model": "vit_base_patch16_224",
 }
 
 
@@ -161,7 +162,7 @@ def train_simsiam(model, data_loader, optimizer, device):
   model.train()
   total_loss = 0.0
 
-  with tqdm(data_loader, desc="Training", unit="batch") as tepoch:
+  with tqdm(data_loader, desc="Pretrain", unit="batch") as tepoch:
     for data in tepoch:
       view1, view2 = data
       view1, view2 = view1.to(device), view2.to(device)
@@ -198,8 +199,10 @@ def data_loader(batch_size=32, image_size=224, npy_files=None):
 
 
 def train():
+  vit_model = ViTBackbone()
   encoder = SimSiamEncoder(
-    base_model=None,
+    backbone=vit_model,
+    # base_model=None,
     projection_dim=config["projection_dim"],
     feature_dim=config["feature_dim"],
   ).to(device=config["device"])
@@ -253,10 +256,10 @@ def encoder_fine_tuning(model_path: str, encoder):
 
 
 class SOHPredictionModel(nn.Module):
-  def __init__(self, encoder):
+  def __init__(self, encoder, feature_dim:int):
     super(SOHPredictionModel, self).__init__()
     self.encoder = encoder
-    self.fc = nn.Linear(config["feature_dim"], 1)
+    self.fc = nn.Linear(feature_dim, 1)
 
   def forward(self, x):
     z, _ = self.encoder(x)
@@ -312,21 +315,24 @@ def train_soh(train_loader, val_loader):
     "momentum": 0.9,
     "feature_dim": 1024,
     "projection_dim": 1024,
-    "base_model": "vit_base_patch16_224",
+    "base_model": None,
     "pretrained_model": "./best_model2.pth",
   }
-
-  encoder = SimSiamEncoder(
-    feature_dim=config["feature_dim"],
-    projection_dim=config["projection_dim"],
-    base_model=config["base_model"],
-  ).to(config["device"])
+  encoder = ViTBackbone()
   encoder = encoder_fine_tuning(config["pretrained_model"], encoder)
+
+  # encoder = SimSiamEncoder(
+  #   backbone=vit_model,
+  #   feature_dim=config["feature_dim"],
+  #   projection_dim=config["projection_dim"],
+  #   # base_model=config["base_model"],
+  # ).to(config["device"])
+  # encoder = encoder_fine_tuning(config["pretrained_model"], encoder)
 
   for param in encoder.parameters():
     param.requires_grad = False
 
-  model = SOHPredictionModel(encoder).to(config["device"])
+  model = SOHPredictionModel(encoder,feature_dim=encoder.num_features).to(config["device"])
 
   optimizer = optim.Adam(
     model.parameters(),
