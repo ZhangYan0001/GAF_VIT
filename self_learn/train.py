@@ -13,7 +13,7 @@ from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 import data.get_dataset as dg
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from ViT.model import ViTBackbone
+import ViT.model as vit
 
 """
   self learning simsiam model
@@ -83,15 +83,13 @@ class GAF3SimSiamDataset(torch.utils.data.Dataset):
 class SimSiamEncoder(nn.Module):
   def __init__(
     self,
-    base_model="vit_base_patch16_224" or None,
+    base_model = None,
     projection_dim=1024,
     feature_dim=1024,
   ):
     super(SimSiamEncoder, self).__init__()
-    if base_model is None:
-      self.encoder = ViTBackbone()
-    else:
-      self.encoder = timm.create_model(base_model, pretrained=True, num_classes=0)
+
+    self.encoder = base_model
 
     out_dim = self.encoder.num_features
 
@@ -147,13 +145,13 @@ config = {
   "datasets_path": "/home/shunlizhang/zy/xj_datasets",
   "batch_size": 32,
   "device": "cuda" if torch.cuda.is_available() else "cpu",
-  "epochs": 30,
+  "epochs": 70,
   "lr": 0.00625,
   "weight_decay": 1e-4,
   "momentum": 0.9,
-  "feature_dim": 1024,
+  "feature_dim": 768,
   "projection_dim": 1024,
-  "base_model": "vit_base_patch16_224",
+  "base_model": None,
 }
 
 
@@ -198,8 +196,14 @@ def data_loader(batch_size=32, image_size=224, npy_files=None):
 
 
 def train():
+  vit_backbone = vit.ViTBackbone(
+    img_size=224, patch_size=16, in_chans=3,
+    embed_dim=768, depth=4, num_heads=12, mlp_ratio=4,
+    drop_rate=0.1, attn_drop_rate=0.1
+  ).to(config["device"])
+
   encoder = SimSiamEncoder(
-    base_model=None,
+    base_model=vit_backbone,
     projection_dim=config["projection_dim"],
     feature_dim=config["feature_dim"],
   ).to(device=config["device"])
@@ -230,14 +234,10 @@ def train():
 
     if avg_loss < best_loss:
       best_loss = avg_loss
+      backbone = model.encoder.encoder
       torch.save(
-        {
-          "encoder": encoder.state_dict(),
-          "optimizer": optimizer.state_dict(),
-          "epoch": epoch,
-          "loss": avg_loss,
-        },
-        "./best_model4.pth",
+        backbone.state_dict(),
+        "./best_model5.pth"
       )
 
 
@@ -253,15 +253,16 @@ def encoder_fine_tuning(model_path: str, encoder):
 
 
 class SOHPredictionModel(nn.Module):
-  def __init__(self, encoder):
+  def __init__(self, encoder, feature_dim:int):
     super(SOHPredictionModel, self).__init__()
     self.encoder = encoder
-    self.fc = nn.Linear(config["feature_dim"], 1)
+    self.fc = nn.Linear(feature_dim, 1)
 
   def forward(self, x):
-    z, _ = self.encoder(x)
-    soh_pred = self.fc(z)
-    return soh_pred
+    feat = self.encoder(x)
+    if isinstance(feat, tuple):
+      feat = feat[0]
+    return self.fc(feat)
 
 def unfreeze_encoder_layers(encoder, num_layers_to_unfreeze):
     for name, param in encoder.named_parameters():
@@ -311,7 +312,7 @@ def evaluate_soh_model(model, val_loader, loss_fn, device):
   return total_loss / len(val_loader)
 
 def get_vit_layers(encoder):
-    return list(encoder.encoder.blocks)
+    return list(encoder.blocks)
 
 def train_soh(train_loader, val_loader):
   config = {
@@ -320,25 +321,46 @@ def train_soh(train_loader, val_loader):
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "epochs": 200,
     "lr": 0.00001,
+    "unfreeze_interval":40,
     "weight_decay": 1e-4,
     "momentum": 0.9,
-    "feature_dim": 1024,
+    "feature_dim": 768,
     "projection_dim": 1024,
-    "base_model": "vit_base_patch16_224",
-    "pretrained_model": "./best_model2.pth",
+    "base_model": None,
+    "pretrained_model": "./best_model5.pth",
+    "save_model":"./best_soh_model5.pth",
+    'vit_kwargs': {
+      'img_size': 224,
+      'patch_size': 16,
+      'in_chans': 3,
+      'embed_dim': 768,
+      'depth': 4,
+      'num_heads': 12,
+      'mlp_ratio': 4,
+      'drop_rate': 0.1,
+      'attn_drop_rate': 0.1,
+    }
   }
 
-  encoder = SimSiamEncoder(
-    feature_dim=config["feature_dim"],
-    projection_dim=config["projection_dim"],
-    base_model=config["base_model"],
-  ).to(config["device"])
-  encoder = encoder_fine_tuning(config["pretrained_model"], encoder)
+  # encoder = SimSiamEncoder(
+  #   feature_dim=config["feature_dim"],
+  #   projection_dim=config["projection_dim"],
+  #   base_model=None,
+  # ).to(config["device"])
+  vit_backbone = vit.ViTBackbone(**config["vit_kwargs"]).to(config["device"])
+  state = torch.load(config["pretrained_model"], map_location=config["device"])
+  vit_backbone.load_state_dict(state)
+  vit_backbone.eval()
+  # encoder = vit.ViTBackbone()
+  # encoder = encoder_fine_tuning(config["pretrained_model"], encoder)
 
-  for param in encoder.parameters():
+  # encoder.load_state_dict(torch.load(config["pretrained_model"], map_location=config["device"]))
+  # encoder.eval()
+
+  for param in vit_backbone.parameters():
     param.requires_grad = False
 
-  model = SOHPredictionModel(encoder).to(config["device"])
+  model = SOHPredictionModel(vit_backbone,768).to(config["device"])
 
   optimizer = optim.AdamW(
     model.parameters(),
@@ -347,7 +369,7 @@ def train_soh(train_loader, val_loader):
   )
   loss_fn = nn.MSELoss()
 
-  vit_layers = get_vit_layers(encoder)
+  vit_layers = vit_backbone.vit.blocks
   total_layers = len(vit_layers)
   best_loss = float("inf")
 
@@ -422,12 +444,26 @@ def evaluate_soh(predictions, true_labels):
 
 
 def load_model(model_path, device):
-  encoder = SimSiamEncoder(
-    base_model=config["base_model"],
-    projection_dim=config["projection_dim"],
-    feature_dim=config["feature_dim"],
-  ).to(device)
-  model = SOHPredictionModel(encoder).to(device)
+  # encoder = SimSiamEncoder(
+  #   base_model=None,
+  #   projection_dim=config["projection_dim"],
+  #   feature_dim=768,
+  # ).to(device)
+  config = {
+    'vit_kwargs': {
+      'img_size': 224,
+      'patch_size': 16,
+      'in_chans': 3,
+      'embed_dim': 768,
+      'depth': 4,
+      'num_heads': 12,
+      'mlp_ratio': 4,
+      'drop_rate': 0.1,
+      'attn_drop_rate': 0.1,
+    }
+  }
+  encoder = vit.ViTBackbone(**config["vit_kwargs"]).to(device)
+  model = SOHPredictionModel(encoder,768).to(device)
 
   checkpoint = torch.load(model_path, map_location=device)
   model.load_state_dict(checkpoint)
@@ -464,8 +500,8 @@ if __name__ == "__main__":
   train_loader, val_loader, test_loader = dg.create_loaders(
     xj_path, dg.xj_image_keys, loader_flag="XJ",batch_size=32
   )
-  # train_soh(train_loader, val_loader)
-  model = load_model("/home/shunlizhang/zy/gaf_-vit/self_learn/best_soh_model3.pth", config["device"])
+  train_soh(train_loader, val_loader)
+  model = load_model("/home/shunlizhang/zy/gaf_-vit/self_learn/best_soh_model5.pth", config["device"])
   predictions, true_labels = predict_soh(model, test_loader, config["device"])
   evaluate_soh(predictions, true_labels)
   plot_soh_predictions(predictions, true_labels)
