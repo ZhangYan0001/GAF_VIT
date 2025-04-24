@@ -314,6 +314,23 @@ class VisionTransformer(nn.Module):
     x = x.squeeze(-1)
     return x
 
+class ViTBackbone(nn.Module):
+  def __init__(self):
+    super().__init__()
+    self.vit = VisionTransformer(
+      img_size=224,
+      patch_size=16,
+      in_chans=3,
+      embed_dim=768,
+      depth=4,
+      num_heads=12,
+      mlp_ratio=4,
+      drop_rate=0.1,
+      attn_drop_rate=0.1,
+    )
+  
+  def forward(self, x):
+    return self.vit.forward_features(x)
 
 @register_model
 def vit_model1(pretrained= False, **kwargs):
