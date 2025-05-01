@@ -1,4 +1,7 @@
+from datetime import datetime
+import matplotlib.pyplot as plt
 import torch
+import json
 import torch.nn as nn
 import numpy as np
 import timm
@@ -14,7 +17,6 @@ from PIL import Image
 import data.get_dataset as dg
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import ViT.model as vit
-from skopt import BayesSearchCV
 
 """
   self learning simsiam model
@@ -84,7 +86,7 @@ class GAF3SimSiamDataset(torch.utils.data.Dataset):
 class SimSiamEncoder(nn.Module):
   def __init__(
     self,
-    base_model = None,
+    base_model=None,
     projection_dim=1024,
     feature_dim=1024,
   ):
@@ -140,6 +142,7 @@ class SimSiam(nn.Module):
     # print("loss total:", loss.item())
 
     return loss
+
 
 def train_simsiam(model, data_loader, optimizer, device):
   model.train()
@@ -222,10 +225,7 @@ def train(config):
     if avg_loss < best_loss:
       best_loss = avg_loss
       backbone = model.encoder.encoder
-      torch.save(
-        backbone.state_dict(),
-        config["save_model"]
-      )
+      torch.save(backbone.state_dict(), config["save_model"])
 
 
 """
@@ -304,8 +304,8 @@ def evaluate_soh_model(model, val_loader, loss_fn, device):
 def get_vit_layers(encoder):
   return list(encoder.blocks)
 
-def train_soh(train_loader, val_loader, config):
 
+def train_soh(train_loader, val_loader, config):
   vit_backbone = vit.ViTBackbone(**config["vit_kwargs"]).to(config["device"])
   state = torch.load(config["pretrained_model"], map_location=config["device"])
   vit_backbone.load_state_dict(state)
@@ -314,7 +314,7 @@ def train_soh(train_loader, val_loader, config):
   for param in vit_backbone.parameters():
     param.requires_grad = False
 
-  model = SOHPredictionModel(vit_backbone,config["feature_dim"]).to(config["device"])
+  model = SOHPredictionModel(vit_backbone, config["feature_dim"]).to(config["device"])
 
   optimizer = optim.AdamW(
     model.parameters(),
@@ -394,22 +394,24 @@ def evaluate_soh(predictions, true_labels):
   print(f"Mean Absolute Percentage Error (MAPE): {mape:.2f}%")
   print(f"R² Score:                        {r2:.4f}")
 
-  return {"MSE": mse, "RMSE": rmse, "MAE": mae, "MAPE": mape, "R2": r2}
+  return {
+    "MSE": float(mse),
+    "RMSE": float(rmse),
+    "MAE": float(mae),
+    "MAPE": float(mape),
+    "R2": float(r2),
+  }
 
 
 def load_model(model_path, device, config):
-
   encoder = vit.ViTBackbone(**config["vit_kwargs"]).to(device)
-  model = SOHPredictionModel(encoder,config["vit_kwargs"]["embed_dim"]).to(device)
+  model = SOHPredictionModel(encoder, config["vit_kwargs"]["embed_dim"]).to(device)
 
   checkpoint = torch.load(model_path, map_location=device)
   model.load_state_dict(checkpoint)
   model.eval()
 
   return model
-
-
-import matplotlib.pyplot as plt
 
 
 def plot_soh_predictions(
@@ -431,6 +433,10 @@ def plot_soh_predictions(
   plt.show()
 
 
+"""
+  Bayes optim
+"""
+
 if __name__ == "__main__":
   #
   config_simsiam = {
@@ -444,54 +450,65 @@ if __name__ == "__main__":
     "feature_dim": 1024,
     "projection_dim": 1024,
     "base_model": None,
-    "save_model":"./best_model9.pth",
-    'vit_kwargs': {
-      'img_size': 224,
-      'patch_size': 16,
-      'in_chans': 3,
-      'embed_dim': 1024,
-      'depth': 6,
-      'num_heads': 16,
-      'mlp_ratio': 4,
-      'drop_rate': 0.0,
-      'attn_drop_rate': 0.0,
-    }
+    "save_model": "./best_model9.pth",
+    "vit_kwargs": {
+      "img_size": 224,
+      "patch_size": 16,
+      "in_chans": 3,
+      "embed_dim": 1024,
+      "depth": 6,
+      "num_heads": 16,
+      "mlp_ratio": 4,
+      "drop_rate": 0.0,
+      "attn_drop_rate": 0.0,
+    },
   }
-  train(config_simsiam)
   config = {
     "datasets_path": "/home/shunlizhang/zy/xj_datasets",
     "batch_size": 32,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "epochs": 250,
-    "lr": 0.0003,
-    "unfreeze_interval":50,
+    "lr": 0.0002,
+    "unfreeze_interval": 50,
     "weight_decay": 1e-4,
     "momentum": 0.9,
     "feature_dim": 1024,
     "projection_dim": 1024,
     "base_model": None,
     "pretrained_model": "./best_model9.pth",
-    "save_model":"./best_soh_model9.pth",
-    'vit_kwargs': {
-      'img_size': 224,
-      'patch_size': 16,
-      'in_chans': 3,
-      'embed_dim': 1024,
-      'depth': 6,
-      'num_heads': 16,
-      'mlp_ratio': 4,
-      'drop_rate': 0.0,
-      'attn_drop_rate': 0.0,
-    }
+    "save_model": "./best_soh_model9.pth",
+    "vit_kwargs": {
+      "img_size": 224,
+      "patch_size": 16,
+      "in_chans": 3,
+      "embed_dim": 1024,
+      "depth": 6,
+      "num_heads": 16,
+      "mlp_ratio": 4,
+      "drop_rate": 0.0,
+      "attn_drop_rate": 0.0,
+    },
   }
 
+  train(config_simsiam)
   xj_path = "/home/shunlizhang/zy/Batch-1"
   train_loader, val_loader, test_loader = dg.create_loaders(
     xj_path, dg.xj_image_keys, loader_flag="XJ", batch_size=32
   )
   train_soh(train_loader, val_loader, config=config)
-  model = load_model("/home/shunlizhang/zy/gaf_-vit/self_learn/best_soh_model9.pth", config["device"], config)
+  model = load_model(
+    "/home/shunlizhang/zy/gaf_-vit/self_learn/best_soh_model9.pth",
+    config["device"],
+    config,
+  )
+
+  now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
   predictions, true_labels = predict_soh(model, test_loader, config["device"])
-  evaluate_soh(predictions, true_labels)
+  results = evaluate_soh(predictions, true_labels)
   plot_soh_predictions(predictions, true_labels)
+  all_config = {
+    now: {"config": config, "config_simsiam": config_simsiam, "result": results}
+  }
+  with open("./best_model_soh&simsiam.jsonl", "a", encoding="utf-8") as f:
+    f.write(json.dumps(all_config, indent=4) + "\n")
